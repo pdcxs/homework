@@ -128,15 +128,15 @@ export default function SignUpPage() {
     };
 
     return (
-        <div style={{ position: "relative", minHeight: "100vh" }}>
-            <div style={{ position: "absolute", top: 16, right: 16 }}>
-                <ColorSchemeToggle />
-            </div>
-
-            <Center w="100%" h="100vh">
-                <Paper shadow="xs" withBorder p="xl" m="md" w="100%" maw="500px">
+        <div style={{ paddingTop: "30px" }}>
+            <Center w="100%">
+                <Paper shadow="xs" withBorder p="sm" m="sm" w="100%" maw="500px">
                     <Stack>
-                        <Title order={2} ta="center">注册新账号</Title>
+                        <Flex justify="space-between" w="100%">
+                            <div style={{ width: "24px" }}></div>
+                            <Title order={2} ta="center">注册新账号</Title>
+                            <ColorSchemeToggle />
+                        </Flex>
 
                         <form onSubmit={form.onSubmit(handleSignUp)}>
                             <Stack>

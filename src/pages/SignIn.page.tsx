@@ -50,13 +50,13 @@ export default function SignInPage() {
 
   const handleSignIn = async (values: FormValues) => {
     setLoading(true);
-    
+
     // 使用全局 Supabase 客户端进行登录
     const { error } = await supabaseClient.auth.signInWithPassword({
       email: values.email,
       password: values.password
     });
-    
+
     setLoading(false);
 
     if (error) {
@@ -84,7 +84,7 @@ export default function SignInPage() {
       form.values.email, {
       redirectTo: window.location.origin + '/homework/reset-password'
     });
-    
+
     if (error) {
       setModalText(error.message);
     } else {
@@ -94,16 +94,15 @@ export default function SignInPage() {
   };
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh" }}>
-      <div style={{ position: "absolute", top: 16, right: 16 }}>
-        <ColorSchemeToggle />
-      </div>
-
+    <div style={{ position: "relative", paddingTop: "20vh" }}>
       <Center w="100%">
-        <Paper shadow="xs" mt="100px" withBorder p="xl" m="md" w="100%" maw="500px">
-          <Stack m="30px" align="center" justify="center">
-            <Title order={2}>登录</Title>
-
+        <Paper shadow="xs" withBorder p="sm" m="sm" w="100%" maw="500px">
+          <Stack align="center" justify="center">
+            <Flex justify="space-between" w="100%">
+              <div style={{ width: "24px" }}></div>
+              <Title order={2}>登录</Title>
+              <ColorSchemeToggle />
+            </Flex>
             <form onSubmit={form.onSubmit(handleSignIn)} style={{ width: "100%" }}>
               <Stack>
                 <TextInput

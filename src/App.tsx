@@ -4,9 +4,12 @@ import { Router } from './Router';
 import { theme } from './theme';
 import { createClient, Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!, 
+  import.meta.env.VITE_SUPABASE_URL!,
   import.meta.env.VITE_SUPABASE_KEY!,
 );
 
@@ -35,6 +38,7 @@ function GlobalContextProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    window.location.href = '/homework';
   };
 
   const value = {
@@ -61,10 +65,12 @@ export function useAuth() {
 
 export default function App() {
   return (
-    <MantineProvider theme={theme}>
-      <GlobalContextProvider>
-        <Router />
-      </GlobalContextProvider>
-    </MantineProvider>
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider theme={theme}>
+        <GlobalContextProvider>
+          <Router />
+        </GlobalContextProvider>
+      </MantineProvider>
+    </QueryClientProvider>
   );
 }
