@@ -35,7 +35,7 @@ export function Router() {
       path: '*',
       element: <Navigate to={session ? '/' : '/sign-in'} replace />,
     }
-  ]);
+  ], { basename: '/homework' });
 
 
   return <RouterProvider router={router} />;
