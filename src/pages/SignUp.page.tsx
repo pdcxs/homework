@@ -14,10 +14,8 @@ import {
     Flex
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { createClient } from "@supabase/supabase-js";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_KEY!);
+import { useAuth } from "@/App";
 
 interface ClassItem {
     id: number;
@@ -38,6 +36,7 @@ export default function SignUpPage() {
     const [loading, setLoading] = useState(false);
     const [modalOpened, setModalOpened] = useState(false);
     const navigate = useNavigate();
+    const { supabaseClient } = useAuth();
 
     const form = useForm<FormValues>({
         initialValues: {
@@ -83,10 +82,9 @@ export default function SignUpPage() {
         },
     });
 
-    // 加载 active 班级
     useEffect(() => {
         const fetchClasses = async () => {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from("classes")
                 .select("id, name")
                 .eq("active", true)
@@ -103,7 +101,7 @@ export default function SignUpPage() {
         setLoading(true);
         console.log(values);
 
-        const { error } = await supabase.auth.signUp({
+        const { error } = await supabaseClient.auth.signUp({
             email: values.email,
             password: values.password,
             options: {

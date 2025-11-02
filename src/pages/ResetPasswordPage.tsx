@@ -4,14 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { PasswordInput, Button, Stack, Title, Alert, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertCircle } from '@tabler/icons-react';
-import supabase from '../client';
 import { ColorSchemeToggle } from '@/components/ColorSchemeToggle';
+import { useAuth } from '@/App';
 
 export default function ResetPasswordPage() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+    const { supabaseClient: supabase } = useAuth();
 
     useEffect(() => {
         if (success) {

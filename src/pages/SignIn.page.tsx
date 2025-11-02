@@ -4,7 +4,6 @@ import {
   PasswordInput,
   Button,
   Anchor,
-  Group,
   Stack,
   Title,
   Modal,
@@ -14,11 +13,9 @@ import {
   Center
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { createClient } from "@supabase/supabase-js";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
 import { useState } from "react";
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_KEY!);
+import { useAuth } from "../App";
 
 interface FormValues {
   email: string;
@@ -30,6 +27,7 @@ export default function SignInPage() {
   const [modalOpened, setModalOpened] = useState(false);
   const [modalText, setModalText] = useState("");
   const navigate = useNavigate();
+  const { supabaseClient } = useAuth();
 
   const form = useForm<FormValues>({
     initialValues: {
@@ -52,10 +50,13 @@ export default function SignInPage() {
 
   const handleSignIn = async (values: FormValues) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    
+    // 使用全局 Supabase 客户端进行登录
+    const { error } = await supabaseClient.auth.signInWithPassword({
       email: values.email,
       password: values.password
     });
+    
     setLoading(false);
 
     if (error) {
@@ -78,10 +79,12 @@ export default function SignInPage() {
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(
+    // 使用全局 Supabase 客户端
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(
       form.values.email, {
       redirectTo: window.location.origin + '/reset-password'
     });
+    
     if (error) {
       setModalText(error.message);
     } else {

@@ -14,14 +14,16 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ColorSchemeToggle } from './ColorSchemeToggle';
-import supabase from '../client';
 import { useDisclosure } from '@mantine/hooks';
+import { useAuth } from '@/App';
+import { sign } from 'crypto';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+    const { supabaseClient, signOut } = useAuth();
     const [active, setActive] = useState(0);
     const navigate = useNavigate();
     const location = useLocation();
@@ -30,7 +32,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     useEffect(() => {
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
+        } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
             if (event === 'PASSWORD_RECOVERY') {
                 navigate('/reset-password', { replace: true });
             }
@@ -40,7 +42,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }, [navigate]);
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
+        await signOut();
         navigate('/sign-in');
     };
 
