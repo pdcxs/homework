@@ -11,6 +11,7 @@ import {
     Burger,
 } from '@mantine/core';
 import {
+    IconEdit,
     IconHome,
     IconLogout,
     IconLogout2
@@ -46,6 +47,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const navItems = [
         { icon: IconHome, label: '首页', path: '/' },
+        { icon: IconEdit, label: '作业', path: '/homework' },
     ];
 
     return (

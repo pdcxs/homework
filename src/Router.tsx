@@ -6,6 +6,7 @@ import SignUpPage from './pages/SignUp.page';
 import { DashboardLayout } from './components/DashboardLayout';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import { useAuth } from './App';
+import HomeworkPage from './pages/Homework.page';
 
 export function Router() {
   const { session, loading } = useAuth();
@@ -30,6 +31,10 @@ export function Router() {
     {
       path: '/sign-up',
       element: session ? <Navigate to="/" replace /> : <SignUpPage />,
+    },
+    {
+      path: '/homework',
+      element: session ? <DashboardLayout><HomeworkPage /></DashboardLayout> : <SignInPage />,
     },
     {
       path: '*',

@@ -75,19 +75,12 @@ export function HomePage() {
   const { data: profile, isLoading: loading } = useQuery<UserProfile | null>({
     queryKey: ['userProfile'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('*').single();
+      const { data, error } = await supabase.from('profiles').select('*,classes!inner(*)').single();
       if (error) {
         console.error('Error fetching profile:', error);
         return null;
       }
-      const { data: class_data } = await supabase.from('classes').select('name').eq('id', data.class_id).single();
-      return {
-        id: data.id,
-        name: data.name,
-        student_id: data.student_id,
-        class_id: data.class_id,
-        class_name: class_data!.name
-      };
+      return data;
     }
   });
 
