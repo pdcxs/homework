@@ -10,13 +10,11 @@ import {
 import {
     IconHome,
     IconLogout,
-    // 添加其他你需要的图标
 } from '@tabler/icons-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ColorSchemeToggle } from './ColorSchemeToggle';
 import { useDisclosure } from '@mantine/hooks';
 import { useAuth } from '@/App';
-import { sign } from 'crypto';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -43,13 +41,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const handleLogout = async () => {
         await signOut();
-        window.location.href = '/homework/sign-in';
+        window.location.href = '/homework';
     };
 
     const navItems = [
         { icon: IconHome, label: '首页', path: '/' },
-        // 在这里添加更多导航项
-        // { icon: IconUser, label: '个人资料', path: '/profile' },
     ];
 
     return (
