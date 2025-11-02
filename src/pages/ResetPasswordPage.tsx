@@ -1,6 +1,5 @@
 // ResetPasswordPage.tsx
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PasswordInput, Button, Stack, Title, Alert, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertCircle } from '@tabler/icons-react';
@@ -8,7 +7,6 @@ import { ColorSchemeToggle } from '@/components/ColorSchemeToggle';
 import { useAuth } from '@/App';
 
 export default function ResetPasswordPage() {
-    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
@@ -18,12 +16,12 @@ export default function ResetPasswordPage() {
         if (success) {
             const timer = setTimeout(async () => {
                 await supabase.auth.signOut();
-                navigate('/sign-in');
+                window.location.href = '/homework';
             }, 3000);
 
             return () => clearTimeout(timer);
         }
-    }, [success, navigate]);
+    }, [success]);
 
     const form = useForm({
         initialValues: {

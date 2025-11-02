@@ -33,7 +33,7 @@ export function Router() {
     },
     {
       path: '*',
-      element: <Navigate to={session ? '/' : '/sign-in'} replace />,
+      element: <Navigate to="/" replace />,
     }
   ], { basename: '/homework' });
 

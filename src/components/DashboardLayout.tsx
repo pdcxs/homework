@@ -43,7 +43,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const handleLogout = async () => {
         await signOut();
-        navigate('/sign-in');
+        window.location.href = '/homework/sign-in';
     };
 
     const navItems = [

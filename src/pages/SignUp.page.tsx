@@ -124,7 +124,7 @@ export default function SignUpPage() {
 
     const handleModalClose = () => {
         setModalOpened(false);
-        navigate("/sign-in");
+        window.location.href = '/homework';
     };
 
     return (
@@ -194,7 +194,7 @@ export default function SignUpPage() {
 
                                 <Flex justify="space-between" mt="md">
                                     <Text>已有账号？</Text>
-                                    <Button variant="subtle" component={Link} to="/sign-in">返回登录</Button>
+                                    <Button variant="subtle" component={Link} to="/">返回登录</Button>
                                 </Flex>
                             </Stack>
                         </form>
