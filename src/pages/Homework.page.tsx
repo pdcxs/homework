@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { IconCalendar, IconEdit } from '@tabler/icons-react';
+import { IconEdit } from '@tabler/icons-react';
 import {
   Badge,
   Button,
@@ -12,6 +12,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useAuth } from '@/App';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 interface HomeworkWithStatus {
   id: bigint;
@@ -35,11 +36,33 @@ export default function HomeworkPage() {
 
   useEffect(() => {
     fetchHomeworks();
+    
+    // 设置实时订阅
+    const subscription = supabase
+      .channel('homeworks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // 监听所有事件：INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'homeworks'
+        },
+        (payload: RealtimePostgresChangesPayload<any>) => {
+          console.log('作业数据发生变化:', payload);
+          // 当homeworks表有变化时重新获取数据
+          fetchHomeworks();
+        }
+      )
+      .subscribe();
+
+    // 清理函数：组件卸载时取消订阅
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchHomeworks = async () => {
     try {
-      setLoading(true);
       setError(null);
 
       const {
@@ -230,4 +253,3 @@ export default function HomeworkPage() {
     </Paper>
   );
 }
-
