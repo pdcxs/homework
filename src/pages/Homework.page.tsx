@@ -13,6 +13,7 @@ import {
 } from '@mantine/core';
 import { useAuth } from '@/App';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
 
 interface HomeworkWithStatus {
   id: bigint;
@@ -33,10 +34,11 @@ export default function HomeworkPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { supabaseClient: supabase } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchHomeworks();
-    
+
     // 设置实时订阅
     const subscription = supabase
       .channel('homeworks-changes')
@@ -139,7 +141,37 @@ export default function HomeworkPage() {
           };
         })
         .sort((h1, h2) => {
-          return new Date(h1.deadline).getTime() - new Date(h2.deadline).getTime();
+          const now = new Date().getTime();
+          const h1Deadline = new Date(h1.deadline).getTime();
+          const h2Deadline = new Date(h2.deadline).getTime();
+
+          // 检查是否超时
+          const h1Expired = h1Deadline < now;
+          const h2Expired = h2Deadline < now;
+
+          // 如果两个作业都超时，按截止时间升序排列
+          if (h1Expired && h2Expired) {
+            return h1Deadline - h2Deadline;
+          }
+
+          // 如果只有h1超时，h1排在后面
+          if (h1Expired && !h2Expired) {
+            return 1;
+          }
+
+          // 如果只有h2超时，h2排在后面
+          if (!h1Expired && h2Expired) {
+            return -1;
+          }
+
+          // 两个作业都未超时，检查提交状态
+          if (h1.is_submitted !== h2.is_submitted) {
+            // 已提交的作业排在未提交的后面
+            return h1.is_submitted ? 1 : -1;
+          }
+
+          // 两个作业提交状态相同，按截止时间升序排列
+          return h1Deadline - h2Deadline;
         });
 
       setHomeworks(processedHomeworks);
@@ -169,8 +201,9 @@ export default function HomeworkPage() {
   };
 
   const handleEdit = (homework: HomeworkWithStatus) => {
-    // TODO: finish this.
-    console.log('编辑作业:', homework);
+    const params = homework.answer_id ?
+      `?answer_id=${homework.answer_id}` : '';
+    navigate(`/edit/${homework.id}${params}`);
   };
 
   if (loading) {

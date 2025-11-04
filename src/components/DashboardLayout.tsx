@@ -47,7 +47,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const navItems = [
         { icon: IconHome, label: '首页', path: '/' },
-        { icon: IconEdit, label: '作业', path: '/homework' },
+        { icon: IconEdit, label: '作业', path: '/tasks' },
     ];
 
     return (

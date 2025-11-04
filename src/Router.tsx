@@ -4,9 +4,10 @@ import SignInPage from './pages/SignIn.page';
 import LoaderComponent from './components/LoaderComponent';
 import SignUpPage from './pages/SignUp.page';
 import { DashboardLayout } from './components/DashboardLayout';
-import ResetPasswordPage from './pages/ResetPasswordPage';
+import ResetPasswordPage from './pages/ResetPassword.page';
 import { useAuth } from './App';
 import HomeworkPage from './pages/Homework.page';
+import HomeworkEditPage from './pages/HomeworkEdit.page';
 
 export function Router() {
   const { session, loading } = useAuth();
@@ -33,8 +34,12 @@ export function Router() {
       element: session ? <Navigate to="/" replace /> : <SignUpPage />,
     },
     {
-      path: '/homework',
+      path: '/tasks',
       element: session ? <DashboardLayout><HomeworkPage /></DashboardLayout> : <SignInPage />,
+    },
+    {
+      path: '/edit/:id',
+      element: session ? <DashboardLayout><HomeworkEditPage /></DashboardLayout> : <SignInPage />,
     },
     {
       path: '*',
