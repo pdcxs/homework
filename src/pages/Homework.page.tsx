@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import { 
-  Table, 
-  Button, 
-  Group, 
-  Text, 
-  Badge, 
+import { useEffect, useState } from 'react';
+import { IconCalendar, IconEdit } from '@tabler/icons-react';
+import {
+  Badge,
+  Button,
+  Group,
   LoadingOverlay,
   Paper,
+  Stack,
+  Table,
+  Text,
   Title,
-  Stack
 } from '@mantine/core';
-import { IconEdit, IconCalendar } from '@tabler/icons-react';
 import { useAuth } from '@/App';
 
 interface HomeworkWithStatus {
@@ -31,7 +31,7 @@ export default function HomeworkPage() {
   const [homeworks, setHomeworks] = useState<HomeworkWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const {supabaseClient: supabase} = useAuth();
+  const { supabaseClient: supabase } = useAuth();
 
   useEffect(() => {
     fetchHomeworks();
@@ -42,13 +42,13 @@ export default function HomeworkPage() {
       setLoading(true);
       setError(null);
 
-      // 1. 获取当前用户信息
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('用户未登录');
       }
 
-      // 2. 获取用户的班级ID
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('class_id')
@@ -60,7 +60,6 @@ export default function HomeworkPage() {
 
       const userClassId = profile.class_id;
 
-      // 3. 查询包含该班级的课程
       const { data: courses, error: coursesError } = await supabase
         .from('courses')
         .select('id, name, language')
@@ -73,9 +72,8 @@ export default function HomeworkPage() {
         return;
       }
 
-      const courseIds = courses.map(course => course.id);
+      const courseIds = courses.map((course) => course.id);
 
-      // 4. 查询这些课程的作业
       const { data: homeworksData, error: homeworksError } = await supabase
         .from('homeworks')
         .select('*')
@@ -88,9 +86,8 @@ export default function HomeworkPage() {
         return;
       }
 
-      const homeworkIds = homeworksData.map(hw => hw.id);
+      const homeworkIds = homeworksData.map((hw) => hw.id);
 
-      // 5. 查询当前用户对这些作业的答案
       const { data: answers, error: answersError } = await supabase
         .from('answers')
         .select('*')
@@ -99,25 +96,28 @@ export default function HomeworkPage() {
 
       if (answersError) throw answersError;
 
-      // 6. 合并数据
-      const processedHomeworks: HomeworkWithStatus[] = homeworksData.map(homework => {
-        const course = courses.find(c => c.id === homework.course_id);
-        const answer = answers?.find(a => a.homework_id === homework.id);
+      const processedHomeworks: HomeworkWithStatus[] = homeworksData
+        .map((homework) => {
+          const course = courses.find((c) => c.id === homework.course_id);
+          const answer = answers?.find((a) => a.homework_id === homework.id);
 
-        return {
-          id: homework.id,
-          course_id: homework.course_id,
-          title: homework.title,
-          description: homework.description,
-          deadline: homework.deadline,
-          created_at: homework.created_at,
-          course_name: course?.name || '未知课程',
-          language: course?.language || 'cpp',
-          submitted_at: answer?.submitted_at || null,
-          answer_id: answer?.id || null,
-          is_submitted: !!answer
-        };
-      });
+          return {
+            id: homework.id,
+            course_id: homework.course_id,
+            title: homework.title,
+            description: homework.description,
+            deadline: homework.deadline,
+            created_at: homework.created_at,
+            course_name: course?.name || '未知课程',
+            language: course?.language || 'cpp',
+            submitted_at: answer?.submitted_at || null,
+            answer_id: answer?.id || null,
+            is_submitted: !!answer,
+          };
+        })
+        .sort((h1, h2) => {
+          return new Date(h1.deadline).getTime() - new Date(h2.deadline).getTime();
+        });
 
       setHomeworks(processedHomeworks);
     } catch (err) {
@@ -135,7 +135,7 @@ export default function HomeworkPage() {
   const getStatusBadge = (homework: HomeworkWithStatus) => {
     const now = new Date();
     const deadline = new Date(homework.deadline);
-    
+
     if (homework.is_submitted) {
       return <Badge color="green">已提交</Badge>;
     } else if (now > deadline) {
@@ -146,9 +146,8 @@ export default function HomeworkPage() {
   };
 
   const handleEdit = (homework: HomeworkWithStatus) => {
-    // 这里以后会实现打开提交作业的界面
+    // TODO: finish this.
     console.log('编辑作业:', homework);
-    // 例如：openHomeworkEditor(homework);
   };
 
   if (loading) {
@@ -173,24 +172,10 @@ export default function HomeworkPage() {
   const rows = homeworks.map((homework) => (
     <Table.Tr key={homework.id.toString()}>
       <Table.Td>
-        <Stack gap={4}>
-          <Text fw={500}>{homework.title}</Text>
-          <Text size="sm" c="dimmed">
-            {homework.course_name}
-          </Text>
-          <Text size="xs" c="dimmed" lineClamp={2}>
-            {homework.description}
-          </Text>
-        </Stack>
+        <Text>{homework.title}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge variant="light">{homework.language.toUpperCase()}</Badge>
-      </Table.Td>
-      <Table.Td>
-        <Group gap="xs">
-          <IconCalendar size={16} />
-          <Text size="sm">{formatDate(homework.deadline)}</Text>
-        </Group>
+        <Text size="sm">{formatDate(homework.deadline)}</Text>
       </Table.Td>
       <Table.Td>
         {homework.is_submitted ? (
@@ -211,7 +196,7 @@ export default function HomeworkPage() {
           onClick={() => handleEdit(homework)}
           disabled={new Date() > new Date(homework.deadline) && !homework.is_submitted}
         >
-          {homework.is_submitted ? '重新提交' : '提交作业'}
+          {homework.is_submitted ? '重写' : '提交'}
         </Button>
       </Table.Td>
     </Table.Tr>
@@ -221,20 +206,19 @@ export default function HomeworkPage() {
     <Paper p="xl" radius="md" withBorder>
       <Stack>
         <Title order={2}>我的作业</Title>
-        
+
         {homeworks.length === 0 ? (
           <Text c="dimmed" ta="center" py="xl">
             暂无作业
           </Text>
         ) : (
-          <Table.ScrollContainer minWidth={800}>
+          <Table.ScrollContainer minWidth={300}>
             <Table verticalSpacing="md">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>作业信息</Table.Th>
-                  <Table.Th>编程语言</Table.Th>
+                  <Table.Th miw={100}>作业信息</Table.Th>
                   <Table.Th>截止时间</Table.Th>
-                  <Table.Th>状态</Table.Th>
+                  <Table.Th miw={80}>状态</Table.Th>
                   <Table.Th>操作</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -246,3 +230,4 @@ export default function HomeworkPage() {
     </Paper>
   );
 }
+
