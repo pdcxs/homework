@@ -10,6 +10,7 @@ import {
   Table,
   Text,
   Title,
+  Select
 } from '@mantine/core';
 import { useAuth } from '@/App';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
@@ -35,6 +36,9 @@ export default function HomeworkPage() {
   const [error, setError] = useState<string | null>(null);
   const { supabaseClient: supabase } = useAuth();
   const navigate = useNavigate();
+  const [selectedCourses, setSelectedCourses] = useState<string[]>(["所有课程"])
+  const [filteredHomeworks, setFilteredHomeworks] = useState<HomeworkWithStatus[]>([]);
+  const [filteredCourse, setFilteredCourse] = useState<string>("所有课程")
 
   useEffect(() => {
     fetchHomeworks();
@@ -62,6 +66,20 @@ export default function HomeworkPage() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    setSelectedCourses(
+      ["所有课程", ...new Set(homeworks.map((h) => h.course_name))]
+    )
+  }, [homeworks])
+
+  useEffect(() => {
+    if (filteredCourse === "所有课程") {
+      setFilteredHomeworks(homeworks);
+      return;
+    }
+    setFilteredHomeworks(homeworks.filter(h => h.course_name === filteredCourse))
+  }, [homeworks, filteredCourse])
 
   const fetchHomeworks = async () => {
     try {
@@ -217,7 +235,7 @@ export default function HomeworkPage() {
   if (error) {
     return (
       <Paper p="xl">
-        <Text color="red">错误: {error}</Text>
+        <Text c="red">错误: {error}</Text>
         <Button onClick={fetchHomeworks} mt="md">
           重试
         </Button>
@@ -225,7 +243,7 @@ export default function HomeworkPage() {
     );
   }
 
-  const rows = homeworks.map((homework) => (
+  const rows = filteredHomeworks.map((homework) => (
     <Table.Tr key={homework.id.toString()}>
       <Table.Td>
         <Text>{homework.title}</Text>
@@ -262,6 +280,11 @@ export default function HomeworkPage() {
     <Paper p="xl" radius="md" withBorder>
       <Stack>
         <Title order={2}>我的作业</Title>
+
+        <Select value={filteredCourse}
+          onChange={(v) => setFilteredCourse(v!)}
+          defaultValue={"所有课程"}
+          data={selectedCourses} />
 
         {homeworks.length === 0 ? (
           <Text c="dimmed" ta="center" py="xl">
