@@ -65,6 +65,7 @@ export function HomeworkHeader({
                 <Select
                     data={LANGUAGE_OPTIONS}
                     value={language}
+                    defaultValue={""}
                     onChange={(value) => onLanguageChange(value || '')}
                     disabled={!isLanguageEditable}
                 />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Stack, Grid, Group, Text, Paper, Button, Title } from '@mantine/core';
+import { Stack, Grid, Group, Text, Paper, Button, Title, Modal } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { useAuth } from '@/App';
@@ -13,17 +13,17 @@ import { CodeEditorTabs, CustomFile } from '@/components/CodeEditorTabs';
 import { RunResultPanel } from '@/components/RunResultPanel';
 import { SubmissionModals } from '@/components/SubmissionModals';
 
-import { 
-    FILE_EXTENSIONS, 
-    runCode, 
+import {
+    FILE_EXTENSIONS,
+    runCode,
     runAllTests,
-    RunResult 
+    RunResult
 } from '@/lib/wandbox';
-import { 
-    fetchHomeworkData, 
-    fetchUserProfile, 
-    checkPreviousSubmission, 
-    loadSubmittedFiles, 
+import {
+    fetchHomeworkData,
+    fetchUserProfile,
+    checkPreviousSubmission,
+    loadSubmittedFiles,
     submitHomework as submitHomeworkToDB,
     HomeworkDetails,
     HomeworkFile,
@@ -49,6 +49,7 @@ export default function HomeworkEditPage() {
     const [initialFileContents, setInitialFileContents] = useState<Record<string, string>>({});
     const [submittedFileContents, setSubmittedFileContents] = useState<Record<string, string>>({});
     const [hasPreviousSubmission, setHasPreviousSubmission] = useState(false);
+    const [selectLanguageModalOpened, { open: selectLanguageModalOpen, close: selectLanguageModalClose }] = useDisclosure(false);
 
     const [noRunOpened, { open: openNoRun, close: closeNoRun }] = useDisclosure(false);
     const [testWarningOpened, { open: openTestWarning, close: closeTestWarning }] = useDisclosure(false);
@@ -89,7 +90,7 @@ export default function HomeworkEditPage() {
             setHomework(homeworkDetails);
             setOriginalFiles(filesData);
 
-            const language = homeworkDetails.language === '*' ? 'cpp' : homeworkDetails.language;
+            const language = homeworkDetails.language === '*' ? '' : homeworkDetails.language;
             form.setFieldValue('language', language);
 
             if (homeworkDetails.compile_options) {
@@ -129,6 +130,10 @@ export default function HomeworkEditPage() {
 
     // 文件操作函数
     const handleAddFile = () => {
+        if (form.values.language === '') {
+            selectLanguageModalOpen();
+            return;
+        }
         const extension = FILE_EXTENSIONS[form.values.language] || '.txt';
         const newFileName = `new_file${customFiles.length + 1}${extension}`;
         const newFile: CustomFile = {
@@ -169,8 +174,8 @@ export default function HomeworkEditPage() {
     };
 
     const handleFileNameEdit = (oldFileName: string, newFileName: string) => {
-        setCustomFiles(prev => prev.map(file => 
-            file.file_name === oldFileName 
+        setCustomFiles(prev => prev.map(file =>
+            file.file_name === oldFileName
                 ? { ...file, file_name: newFileName }
                 : file
         ));
@@ -220,7 +225,7 @@ export default function HomeworkEditPage() {
         try {
             let result: RunResult;
 
-            if (homework?.inputs && homework.inputs.length > 0 && 
+            if (homework?.inputs && homework.inputs.length > 0 &&
                 homework.outputs && homework.outputs.length === homework.inputs.length) {
                 // 运行测试用例
                 result = await runAllTests(
@@ -256,12 +261,12 @@ export default function HomeworkEditPage() {
     };
 
     const handleSubmit = async () => {
-        if (homework?.inputs && homework.inputs.length > 0 && 
+        if (homework?.inputs && homework.inputs.length > 0 &&
             runResult && !runResult.allTestsPassed) {
             openTestWarning();
             return;
         }
-        
+
         if (!runResult) {
             openNoRun();
             return;
@@ -318,75 +323,87 @@ export default function HomeworkEditPage() {
     const allFiles = getAllFiles();
 
     return (
-        <Stack p="md" mt="20px">
-            <HomeworkHeader
-                title={homework.title}
-                language={form.values.language}
-                onLanguageChange={(value) => form.setFieldValue('language', value)}
-                onResetToOriginal={handleResetToOriginal}
-                onResetToPreviousSubmission={handleResetToPreviousSubmission}
-                hasPreviousSubmission={hasPreviousSubmission}
-                isLanguageEditable={homework.language === '*'}
-            />
+        <>
+            <Stack p="md" mt="20px">
+                <HomeworkHeader
+                    title={homework.title}
+                    language={form.values.language}
+                    onLanguageChange={(value) => form.setFieldValue('language', value)}
+                    onResetToOriginal={handleResetToOriginal}
+                    onResetToPreviousSubmission={handleResetToPreviousSubmission}
+                    hasPreviousSubmission={hasPreviousSubmission}
+                    isLanguageEditable={homework.language === '*'}
+                />
 
-            <Grid>
-                <Grid.Col span={{ base: 12, md: 6, lg: 6 }}>
-                    <HomeworkDescription 
-                        description={homework.description} 
-                        colorScheme={colorScheme} 
-                    />
-                </Grid.Col>
+                <Grid>
+                    <Grid.Col span={{ base: 12, md: 6, lg: 6 }}>
+                        <HomeworkDescription
+                            description={homework.description}
+                            colorScheme={colorScheme}
+                        />
+                    </Grid.Col>
 
-                <Grid.Col span={{ base: 12, md: 6, lg: 6 }}>
-                    <Group justify="space-between" mb="md">
-                        <Title order={4}>代码编辑</Title>
-                        <Text size="sm" c="dimmed">
-                            {hasPreviousSubmission ? '编辑已提交的作业' : '新作业'}
-                        </Text>
-                    </Group>
+                    <Grid.Col span={{ base: 12, md: 6, lg: 6 }}>
+                        <Group justify="space-between" mb="md">
+                            <Title order={4}>代码编辑</Title>
+                            <Text size="sm" c="dimmed">
+                                {hasPreviousSubmission ? '编辑已提交的作业' : '新作业'}
+                            </Text>
+                        </Group>
 
-                    <CodeEditorTabs
-                        files={allFiles}
-                        fileContents={fileContents}
-                        activeFile={activeFile}
-                        language={form.values.language}
-                        colorScheme={colorScheme}
-                        onFileChange={handleFileContentChange}
-                        onActiveFileChange={setActiveFile}
-                        onAddFile={handleAddFile}
-                        onDeleteFile={handleDeleteFile}
-                        onFileNameEdit={handleFileNameEdit}
-                    />
-                </Grid.Col>
-            </Grid>
+                        <CodeEditorTabs
+                            files={allFiles}
+                            fileContents={fileContents}
+                            activeFile={activeFile}
+                            language={form.values.language}
+                            colorScheme={colorScheme}
+                            onFileChange={handleFileContentChange}
+                            onActiveFileChange={setActiveFile}
+                            onAddFile={handleAddFile}
+                            onDeleteFile={handleDeleteFile}
+                            onFileNameEdit={handleFileNameEdit}
+                        />
+                    </Grid.Col>
+                </Grid>
 
-            <CompileOptionsPanel
-                compileOptions={form.values.compileOptions}
-                onCompileOptionsChange={(value) => form.setFieldValue('compileOptions', value)}
-                stdin={form.values.stdin}
-                onStdinChange={(value) => form.setFieldValue('stdin', value)}
-                hasPresetCompileOptions={!!homework.compile_options}
-                hasTestCases={!!homework.inputs}
-            />
+                <CompileOptionsPanel
+                    compileOptions={form.values.compileOptions}
+                    onCompileOptionsChange={(value) => form.setFieldValue('compileOptions', value)}
+                    stdin={form.values.stdin}
+                    onStdinChange={(value) => form.setFieldValue('stdin', value)}
+                    hasPresetCompileOptions={!!homework.compile_options}
+                    hasTestCases={!!homework.inputs}
+                />
 
-            <RunResultPanel
-                runResult={runResult}
-                running={running}
-                submitting={submitting}
-                hasPreviousSubmission={hasPreviousSubmission}
-                onRunCode={handleRunCode}
-                onSubmit={handleSubmit}
-            />
+                <RunResultPanel
+                    runResult={runResult}
+                    running={running}
+                    submitting={submitting}
+                    hasPreviousSubmission={hasPreviousSubmission}
+                    onRunCode={handleRunCode}
+                    onSubmit={handleSubmit}
+                />
 
-            <SubmissionModals
-                noRunOpened={noRunOpened}
-                onNoRunClose={closeNoRun}
-                testWarningOpened={testWarningOpened}
-                onTestWarningClose={closeTestWarning}
-                submitting={submitting}
-                runResult={runResult}
-                onSubmit={submitHomework}
-            />
-        </Stack>
+                <SubmissionModals
+                    noRunOpened={noRunOpened}
+                    onNoRunClose={closeNoRun}
+                    testWarningOpened={testWarningOpened}
+                    onTestWarningClose={closeTestWarning}
+                    submitting={submitting}
+                    runResult={runResult}
+                    onSubmit={submitHomework}
+                />
+            </Stack>
+            <Modal opened={selectLanguageModalOpened}
+                onClose={selectLanguageModalClose}
+                title="请选择编程语言">
+                <Text>请先选择编程语言。</Text>
+                <Group justify="flex-end">
+                    <Button onClick={selectLanguageModalClose} loading={submitting}>
+                        确认
+                    </Button>
+                </Group>
+            </Modal>
+        </>
     );
 }
