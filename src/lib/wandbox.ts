@@ -97,6 +97,9 @@ export const getLatestCompiler = async (language: string): Promise<string> => {
     if (!latestCompiler) {
         throw new Error(`No compiler found for language: ${language}`);
     }
+    if (latestCompiler.name === "cpython-head") {
+        return "cpython-3.14.0";
+    }
 
     return latestCompiler.name;
 };
@@ -116,7 +119,7 @@ const executeWandbox = async (
         })),
         options: compileOptions || "",
         stdin,
-        compiler_option_raw: compileOptions || "-O2 -std=c++17",
+        compiler_option_raw: compileOptions || "",
         runtime_option_raw: ""
     };
 
@@ -142,7 +145,7 @@ const executeWandbox = async (
     }
 
     const result = await response.json();
-    const output = result.program_output || result.compiler_output || '程序运行完成，无输出内容';
+    const output = result.program_output || result.compiler_output || '';
 
     return {
         success: result.status === '0',
@@ -205,7 +208,7 @@ export const runAllTests = async (
 
         const result = await runSingleTest(compiler, fileContents, input, compileOptions);
         
-        const passed = result.success && result.output === expectedOutput;
+        const passed = result.success && result.output.trim() === expectedOutput;
         
         if (!passed) {
             allTestsPassed = false;
