@@ -14,7 +14,6 @@ import {
     Code,
     Tabs,
     useMantineColorScheme,
-    MantineColorScheme,
     Tooltip,
     ActionIcon,
     Grid,
@@ -23,6 +22,8 @@ import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import MDEditor from '@uiw/react-md-editor';
 import { useAuth } from '@/App';
+import LoaderComponent from '@/components/LoaderComponent';
+import CodeEditor from '@/components/CodeEditor';
 
 interface HomeworkFile {
     id: bigint;
@@ -65,6 +66,7 @@ const LANGUAGE_OPTIONS = [
     { value: 'csharp', label: 'C#' },
     { value: 'go', label: 'Go' },
     { value: 'haskell', label: 'Haskell' },
+    { value: 'lisp', label: 'Lisp' },
 ];
 
 export default function HomeworkEditPage() {
@@ -245,8 +247,8 @@ export default function HomeworkEditPage() {
                     console.log('正在下载文件:', filePath);
 
                     const { data: signed, error: signError } = await supabase.storage
-                     .from('homework').createSignedUrl(filePath, 30);
-                    
+                        .from('homework').createSignedUrl(filePath, 30);
+
                     if (signError || !signed?.signedUrl) continue;
 
                     const resp = await fetch(signed.signedUrl);
@@ -308,6 +310,7 @@ export default function HomeworkEditPage() {
             'csharp': 'mcs 6.12.0.199',
             'go': 'go 1.23.2',
             'haskell': 'ghc 9.10.1',
+            'lisp': 'CLISP 2.49',
         };
         return compilerMap[language] || 'gcc-13.2.0';
     };
@@ -370,12 +373,7 @@ export default function HomeworkEditPage() {
                 console.error('更新答案记录失败:', answerError);
                 throw answerError;
             }
-            setSubmittedFileContents({ ...fileContents });
-            setHasPreviousSubmission(true);
-            setTimeout(() => {
-                navigate('/tasks');
-            }, 500);
-
+            navigate('/tasks');
         } catch (error) {
             console.error('提交作业失败:', error);
             alert('提交作业失败，请重试');
@@ -407,7 +405,8 @@ export default function HomeworkEditPage() {
                 runtime_option_raw: ""
             };
 
-            const mainFile = files.find(file => file.file_name.startsWith('prog.'));
+            const mainFile = files.find(file => file.file_name.startsWith('Main.')
+                || file.file_name.startsWith('main.'));
 
             if (mainFile) {
                 wandboxData.code = fileContents[mainFile.file_name];
@@ -655,45 +654,3 @@ export default function HomeworkEditPage() {
     );
 }
 
-// Monaco 编辑器组件
-import Editor from '@monaco-editor/react';
-import LoaderComponent from '@/components/LoaderComponent';
-
-interface CodeEditorProps {
-    value: string;
-    onChange: (value: string | undefined) => void;
-    language: string;
-    readOnly?: boolean;
-    height?: string;
-    colorScheme?: MantineColorScheme;
-}
-
-function CodeEditor({ value, onChange, language, readOnly = false, height = '400px', colorScheme = 'light' }: CodeEditorProps) {
-    const editorLanguageMap: Record<string, string> = {
-        'cpp': 'cpp',
-        'java': 'java',
-        'python': 'python',
-        'csharp': 'csharp',
-        'go': 'go',
-        'haskell': 'haskell',
-    };
-
-    return (
-        <Editor
-            height={height}
-            language={editorLanguageMap[language] || 'plaintext'}
-            value={value}
-            onChange={onChange}
-            width="100%"
-            options={{
-                readOnly,
-                minimap: { enabled: false },
-                fontSize: 14,
-                wordWrap: 'on',
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-            }}
-            theme={colorScheme === 'dark' ? 'vs-dark' : 'vs'}
-        />
-    );
-}

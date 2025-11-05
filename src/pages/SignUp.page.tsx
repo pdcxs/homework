@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
     TextInput,
     PasswordInput,
@@ -35,7 +35,6 @@ export default function SignUpPage() {
     const [classes, setClasses] = useState<ClassItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpened, setModalOpened] = useState(false);
-    const navigate = useNavigate();
     const { supabaseClient } = useAuth();
 
     const form = useForm<FormValues>({
