@@ -2,9 +2,9 @@ import '@mantine/core/styles.css';
 import { MantineProvider } from '@mantine/core';
 import { Router } from './Router';
 import { theme } from './theme';
-import { createClient, Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createClient, Session } from '@supabase/supabase-js';
 
 const queryClient = new QueryClient();
 
@@ -17,6 +17,7 @@ interface GlobalContextType {
   supabaseClient: typeof supabase;
   session: Session | null;
   loading: boolean;
+  setSession: React.Dispatch<React.SetStateAction<Session | null>>,
 }
 
 const AuthContext = createContext<GlobalContextType | undefined>(undefined);
@@ -39,6 +40,7 @@ function GlobalContextProvider({ children }: { children: React.ReactNode }) {
     session,
     loading,
     supabaseClient: supabase,
+    setSession,
   };
 
   return (

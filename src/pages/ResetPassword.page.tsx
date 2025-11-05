@@ -11,13 +11,14 @@ export default function ResetPasswordPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
-    const { supabaseClient: supabase } = useAuth();
+    const { supabaseClient: supabase, setSession } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
         if (success) {
             const timer = setTimeout(async () => {
                 await supabase.auth.signOut();
+                setSession(null);
                 navigate("/");
             }, 3000);
 

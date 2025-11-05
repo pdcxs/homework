@@ -26,8 +26,7 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-    const { supabaseClient } = useAuth();
-    const [active, setActive] = useState(0);
+    const { supabaseClient, setSession } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
@@ -35,6 +34,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const signOut = async () => {
         await supabaseClient.auth.signOut();
+        setSession(null);
         navigate("/");
     }
 
@@ -84,7 +84,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         label={item.label}
                         leftSection={<item.icon size="1rem" stroke={1.5} />}
                         onClick={() => {
-                            setActive(index);
                             navigate(item.path);
                         }}
                     />

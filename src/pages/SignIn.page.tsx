@@ -27,7 +27,7 @@ export default function SignInPage() {
   const [modalOpened, setModalOpened] = useState(false);
   const [modalText, setModalText] = useState("");
   const navigate = useNavigate();
-  const { supabaseClient } = useAuth();
+  const { supabaseClient, setSession } = useAuth();
 
   const form = useForm<FormValues>({
     initialValues: {
@@ -58,6 +58,7 @@ export default function SignInPage() {
     });
 
     setLoading(false);
+    setSession((await supabaseClient.auth.getSession()).data.session);
 
     if (error) {
       setModalText(error.message);
@@ -82,8 +83,7 @@ export default function SignInPage() {
     // 使用全局 Supabase 客户端
     const { error } = await supabaseClient.auth.resetPasswordForEmail(
       form.values.email, {
-      // redirectTo: window.location.origin + '/homework/#/reset-password'
-      redirectTo: window.location.origin + '/homework/redirect.html'
+      redirectTo: window.location.origin + '/homework/reset-password'
     });
 
     if (error) {

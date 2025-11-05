@@ -1,4 +1,4 @@
-import { createHashRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { HomePage } from './pages/Home.page';
 import SignInPage from './pages/SignIn.page';
 import LoaderComponent from './components/LoaderComponent';
@@ -16,7 +16,7 @@ export function Router() {
     return <LoaderComponent>正在登陆中……</LoaderComponent>
   }
 
-  const router = createHashRouter([
+  const router = createBrowserRouter([
     {
       path: '/',
       element: session ? <DashboardLayout><HomePage /></DashboardLayout> : <SignInPage />,
@@ -45,7 +45,9 @@ export function Router() {
       path: '*',
       element: <Navigate to="/" replace />,
     }
-  ]);
+  ], {
+    basename: '/homework'
+  });
 
 
   return <RouterProvider router={router} />;

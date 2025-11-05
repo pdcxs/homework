@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
+  "homepage": "https://pdcxs.github.io/homework",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc && vite build && cp redirect.html dist/",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "npm run eslint && npm run stylelint",
