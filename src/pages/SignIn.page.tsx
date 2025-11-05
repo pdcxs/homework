@@ -82,7 +82,8 @@ export default function SignInPage() {
     // 使用全局 Supabase 客户端
     const { error } = await supabaseClient.auth.resetPasswordForEmail(
       form.values.email, {
-      redirectTo: window.location.origin + '/homework/#/reset-password'
+      // redirectTo: window.location.origin + '/homework/#/reset-password'
+      redirectTo: window.location.origin + '/homework/redirect.html'
     });
 
     if (error) {
