@@ -1,18 +1,35 @@
 <!DOCTYPE html>
 <html>
-  <head>
+
+<head>
     <meta charset="utf-8">
     <title>Redirecting</title>
     <script>
-      const segment = 1;
-      const path = window.location.pathname.split('/').slice(segment + 1).join('/');
-      const search = window.location.search;
-      const hash = window.location.hash;
-      
-      window.location.href = `/${window.location.pathname.split('/').slice(1, segment + 1).join('/')}/index.html?redirect=${encodeURIComponent(path + search + hash)}`;
+        // 保存当前路径，然后重定向到首页
+        const path = window.location.pathname;
+        const search = window.location.search;
+        const hash = window.location.hash;
+
+        // 移除基础路径 '/homework'
+        const basePath = '/homework';
+        let appPath = path;
+        if (path.startsWith(basePath)) {
+            appPath = path.slice(basePath.length);
+        }
+
+        // 保存完整路径到 sessionStorage
+        const redirectPath = appPath + search + hash;
+        if (redirectPath && redirectPath !== '/') {
+            sessionStorage.setItem('redirectPath', redirectPath);
+        }
+
+        // 重定向到应用首页
+        window.location.href = basePath + '/';
     </script>
-  </head>
-  <body>
+</head>
+
+<body>
     <p>Redirecting...</p>
-  </body>
+</body>
+
 </html>
