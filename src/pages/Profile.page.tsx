@@ -1,25 +1,23 @@
 // pages/Home.page.tsx
-import { 
-  Text, 
-  Card, 
-  Stack, 
-  Title, 
-  TextInput, 
-  Select, 
-  Button, 
-  Modal, 
-  Group, 
-  Alert 
+import {
+  Text,
+  Card,
+  Stack,
+  Title,
+  TextInput,
+  Select,
+  Button,
+  Modal,
+  Group,
+  Alert
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { createClient } from '@supabase/supabase-js';
 import LoaderComponent from '@/components/LoaderComponent';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useDisclosure } from '@mantine/hooks';
 import { IconCheck, IconAlertCircle } from '@tabler/icons-react';
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_KEY!);
+import { useAuth } from '@/App';
 
 interface UserProfile {
   id: string;
@@ -40,11 +38,12 @@ interface FormValues {
   class_id: string;
 }
 
-export function HomePage() {
+export function UserProfilePage() {
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [initialValues, setInitialValues] = useState<FormValues | null>(null);
+  const { supabaseClient: supabase } = useAuth();
 
   const form = useForm<FormValues>({
     initialValues: {
@@ -54,18 +53,18 @@ export function HomePage() {
     },
 
     validate: {
-      name: (value) => 
-        value.trim().length === 0 ? '姓名不能为空' : 
-        value.trim().length < 2 ? '姓名至少需要2个字符' : null,
-      
+      name: (value) =>
+        value.trim().length === 0 ? '姓名不能为空' :
+          value.trim().length < 2 ? '姓名至少需要2个字符' : null,
+
       student_id: (value) => {
         if (value.trim().length === 0) return '学号不能为空';
         if (!/^\d+$/.test(value)) return '学号必须全部为数字';
         if (value.length < 3) return '学号至少需要3位数字';
         return null;
       },
-      
-      class_id: (value) => 
+
+      class_id: (value) =>
         !value ? '请选择班级' : null,
     },
   });
@@ -92,12 +91,12 @@ export function HomePage() {
         .select('id, name')
         .eq('active', true)
         .order('name');
-      
+
       if (error) {
         console.error('Error fetching classes:', error);
         return [];
       }
-      
+
       return data.map(cls => ({
         value: cls.id.toString(),
         label: cls.name
@@ -138,7 +137,7 @@ export function HomePage() {
         student_id: profile.student_id,
         class_id: profile.class_id.toString()
       };
-      
+
       form.setValues(formValues);
       setInitialValues(formValues);
       form.resetDirty();
@@ -178,7 +177,7 @@ export function HomePage() {
       )}
 
       <Title order={1}>个人信息管理</Title>
-      
+
       <Card shadow="md" p="xl" radius="lg" withBorder>
         <form>
           <Stack gap="xl">
@@ -229,10 +228,10 @@ export function HomePage() {
         </form>
       </Card>
 
-      <Modal 
-        opened={opened} 
-        onClose={close} 
-        title="确认更改" 
+      <Modal
+        opened={opened}
+        onClose={close}
+        title="确认更改"
         size="md"
         centered
       >
@@ -242,7 +241,7 @@ export function HomePage() {
             <Button variant="outline" onClick={close} disabled={updateProfileMutation.isPending}>
               取消
             </Button>
-            <Button 
+            <Button
               onClick={handleSubmit}
               loading={updateProfileMutation.isPending}
               color="blue"

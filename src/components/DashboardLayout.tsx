@@ -1,5 +1,5 @@
 // components/DashboardLayout.tsx
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
     AppShell,
     Tooltip,
@@ -12,9 +12,9 @@ import {
 } from '@mantine/core';
 import {
     IconEdit,
-    IconHome,
     IconLogout,
-    IconLogout2
+    IconLogout2,
+    IconUser
 } from '@tabler/icons-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ColorSchemeToggle } from './ColorSchemeToggle';
@@ -51,8 +51,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }, [navigate]);
 
     const navItems = [
-        { icon: IconHome, label: '首页', path: '/' },
         { icon: IconEdit, label: '作业', path: '/tasks' },
+        { icon: IconUser, label: '用户信息', path: '/profile' },
     ];
 
     return (

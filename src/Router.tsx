@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
-import { HomePage } from './pages/Home.page';
+import { UserProfilePage } from './pages/Profile.page';
 import SignInPage from './pages/SignIn.page';
 import LoaderComponent from './components/LoaderComponent';
 import SignUpPage from './pages/SignUp.page';
@@ -19,7 +19,11 @@ export function Router() {
   const router = createBrowserRouter([
     {
       path: '/',
-      element: session ? <DashboardLayout><HomePage /></DashboardLayout> : <SignInPage />,
+      element: session ? <DashboardLayout><HomeworkPage /></DashboardLayout> : <SignInPage />,
+    },
+    {
+      path: '/profile',
+      element: session ? <DashboardLayout><UserProfilePage /></DashboardLayout> : <SignInPage />,
     },
     {
       path: '/sign-in',
