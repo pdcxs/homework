@@ -1,3 +1,4 @@
+// /src/components/RunResultPanel.tsx
 import {
     Paper,
     Stack,
@@ -7,27 +8,32 @@ import {
     Code,
     Button,
     Alert,
-    List,
     ThemeIcon
 } from '@mantine/core';
-import { IconRun, IconSend, IconCheck, IconX } from '@tabler/icons-react';
+import { IconRun, IconSend, IconCheck, IconX, IconTestPipe } from '@tabler/icons-react';
 import { RunResult } from '@/lib/wandbox';
 
 interface RunResultPanelProps {
     runResult: RunResult | null;
     running: boolean;
+    testing: boolean; // 新增测试状态
     submitting: boolean;
     hasPreviousSubmission: boolean;
+    hasTestCases: boolean; // 新增：是否有测试用例
     onRunCode: () => void;
+    onTestCode: () => void; // 新增：测试回调
     onSubmit: () => void;
 }
 
 export function RunResultPanel({
     runResult,
     running,
+    testing,
     submitting,
     hasPreviousSubmission,
+    hasTestCases,
     onRunCode,
+    onTestCode,
     onSubmit
 }: RunResultPanelProps) {
     return (
@@ -101,19 +107,35 @@ export function RunResultPanel({
                 )}
 
                 <Group justify="flex-end">
+                    {/* 测试按钮 */}
+                    <Button
+                        leftSection={<IconTestPipe size={16} />}
+                        onClick={onTestCode}
+                        loading={testing}
+                        disabled={!hasTestCases || running} // 没有测试用例时禁用
+                        variant="light"
+                        color={hasTestCases ? 'blue' : 'gray'}
+                    >
+                        测试代码
+                    </Button>
+                    
+                    {/* 运行按钮 */}
                     <Button
                         leftSection={<IconRun size={16} />}
                         onClick={onRunCode}
                         loading={running}
+                        disabled={testing}
                         variant="light"
                     >
                         运行代码
                     </Button>
+                    
+                    {/* 提交按钮 */}
                     <Button
                         leftSection={<IconSend size={16} />}
                         onClick={onSubmit}
                         loading={submitting}
-                        disabled={running}
+                        disabled={running || testing}
                     >
                         {hasPreviousSubmission ? '更新提交' : '提交作业'}
                     </Button>

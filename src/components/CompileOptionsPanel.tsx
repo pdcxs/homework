@@ -1,4 +1,4 @@
-import { Grid, TextInput, Textarea } from '@mantine/core';
+import { Grid, Textarea } from '@mantine/core';
 
 interface CompileOptionsPanelProps {
     compileOptions: string;
@@ -6,7 +6,6 @@ interface CompileOptionsPanelProps {
     stdin: string;
     onStdinChange: (value: string) => void;
     hasPresetCompileOptions: boolean;
-    hasTestCases: boolean;
 }
 
 export function CompileOptionsPanel({
@@ -15,7 +14,6 @@ export function CompileOptionsPanel({
     stdin,
     onStdinChange,
     hasPresetCompileOptions,
-    hasTestCases
 }: CompileOptionsPanelProps) {
     return (
         <Grid>
@@ -37,8 +35,7 @@ export function CompileOptionsPanel({
                     placeholder="输入程序的标准输入..."
                     autosize
                     minRows={2}
-                    disabled={hasTestCases}
-                    description={hasTestCases ? '使用教师预设的测试用例' : '手动输入标准输入'}
+                    description={'可自定义程序输入内容'}
                 />
             </Grid.Col>
         </Grid>

@@ -8,6 +8,7 @@ interface SubmissionModalsProps {
     onTestWarningClose: () => void;
     submitting: boolean;
     runResult: RunResult | null;
+    hasTestCases: boolean;
     onSubmit: () => void;
 }
 
@@ -18,6 +19,7 @@ export function SubmissionModals({
     onTestWarningClose,
     submitting,
     runResult,
+    hasTestCases,
     onSubmit
 }: SubmissionModalsProps) {
     return (
@@ -37,13 +39,17 @@ export function SubmissionModals({
 
             {/* 测试未通过警告模态框 */}
             <Modal opened={testWarningOpened} onClose={onTestWarningClose} title="测试未全部通过" centered>
-                <Alert color="orange" mb="md">
-                    您的代码没有通过全部测试用例，是否确认提交？
-                </Alert>
-                <List size="sm" mb="md">
-                    <List.Item>通过的测试用例: {runResult?.testResults?.filter(t => t.passed).length}</List.Item>
-                    <List.Item>总测试用例: {runResult?.testResults?.length}</List.Item>
-                </List>
+                {hasTestCases ? (
+                    <>
+                        <Alert color="orange" mb="md">
+                            您的代码没有通过全部测试用例，是否确认提交？
+                        </Alert>
+                        <List size="sm" mb="md">
+                            <List.Item>通过的测试用例: {runResult?.testResults?.filter(t => t.passed).length}</List.Item>
+                            <List.Item>总测试用例: {runResult?.testResults?.length}</List.Item>
+                        </List>
+                    </>) :
+                    <Text>"您还没有运行过代码，建议先运行代码确认无误后再提交。"</Text>}
                 <Group justify="flex-end">
                     <Button variant="subtle" onClick={onTestWarningClose}>
                         继续修改

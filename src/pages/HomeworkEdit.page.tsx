@@ -43,6 +43,8 @@ export default function HomeworkEditPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [running, setRunning] = useState(false);
+    const [hasTestCases, setHasTestCases] = useState(false);
+    const [testing, setTesting] = useState(false);
     const [runResult, setRunResult] = useState<RunResult | null>(null);
     const [activeFile, setActiveFile] = useState<string | null>(null);
     const [fileContents, setFileContents] = useState<Record<string, string>>({});
@@ -71,6 +73,14 @@ export default function HomeworkEditPage() {
             fetchData();
         }
     }, [homeworkId]);
+
+    useEffect(() => {
+        setHasTestCases(
+            Boolean(
+                homework?.inputs && homework.inputs.length > 0 &&
+                homework?.outputs && homework.outputs.length === homework.inputs.length
+            ))
+    }, [homework])
 
     const fetchData = async () => {
         try {
@@ -223,27 +233,12 @@ export default function HomeworkEditPage() {
         setRunResult(null);
 
         try {
-            let result: RunResult;
-
-            if (homework?.inputs && homework.inputs.length > 0 &&
-                homework.outputs && homework.outputs.length === homework.inputs.length) {
-                // 运行测试用例
-                result = await runAllTests(
-                    fileContents,
-                    homework.inputs,
-                    homework.outputs,
-                    form.values.language,
-                    form.values.compileOptions
-                );
-            } else {
-                // 普通运行
-                result = await runCode(
-                    fileContents,
-                    form.values.stdin,
-                    form.values.language,
-                    form.values.compileOptions
-                );
-            }
+            const result = await runCode(
+                fileContents,
+                form.values.stdin,
+                form.values.language,
+                form.values.compileOptions,
+            );
 
             setRunResult(result);
             setHomework(old => old ? { ...old, result: result.output } : old);
@@ -260,17 +255,57 @@ export default function HomeworkEditPage() {
         }
     };
 
-    const handleSubmit = async () => {
-        if (homework?.inputs && homework.inputs.length > 0 &&
-            runResult && !runResult.allTestsPassed) {
-            openTestWarning();
+    const handleTestCode = async () => {
+        if (!form.values.language) {
+            alert('请选择编程语言');
             return;
         }
 
-        if (!runResult) {
-            openNoRun();
+        if (!hasTestCases) {
+            alert('当前作业没有测试用例');
             return;
         }
+
+        setTesting(true);
+        setRunResult(null);
+
+        try {
+            const result = await runAllTests(
+                fileContents,
+                homework!.inputs!,
+                homework!.outputs!,
+                form.values.language,
+                form.values.compileOptions
+            );
+
+            setRunResult(result);
+            setHomework(old => old ? { ...old, result: result.output } : old);
+
+        } catch (error) {
+            console.error('测试代码失败:', error);
+            setRunResult({
+                success: false,
+                output: '',
+                error: '测试代码时发生错误',
+            });
+        } finally {
+            setTesting(false);
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (hasTestCases) {
+            if (!runResult || runResult.testResults === undefined) {
+                openTestWarning();
+                return;
+            }
+        } else {
+            if (!runResult) {
+                openNoRun();
+                return;
+            }
+        }
+
         await submitHomework();
     };
 
@@ -372,15 +407,17 @@ export default function HomeworkEditPage() {
                     stdin={form.values.stdin}
                     onStdinChange={(value) => form.setFieldValue('stdin', value)}
                     hasPresetCompileOptions={!!homework.compile_options}
-                    hasTestCases={!!homework.inputs}
                 />
 
                 <RunResultPanel
                     runResult={runResult}
                     running={running}
+                    testing={testing}
                     submitting={submitting}
                     hasPreviousSubmission={hasPreviousSubmission}
+                    hasTestCases={hasTestCases}
                     onRunCode={handleRunCode}
+                    onTestCode={handleTestCode}
                     onSubmit={handleSubmit}
                 />
 
@@ -391,6 +428,7 @@ export default function HomeworkEditPage() {
                     onTestWarningClose={closeTestWarning}
                     submitting={submitting}
                     runResult={runResult}
+                    hasTestCases={hasTestCases}
                     onSubmit={submitHomework}
                 />
             </Stack>

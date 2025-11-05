@@ -3,7 +3,6 @@ import {
     Tabs,
     Group,
     Text,
-    ActionIcon,
     CloseButton,
     TextInput,
     Button,
