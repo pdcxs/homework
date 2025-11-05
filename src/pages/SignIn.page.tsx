@@ -63,7 +63,7 @@ export default function SignInPage() {
       setModalText(error.message);
       setModalOpened(true);
     } else {
-      window.location.href = '/homework/';
+      navigate("/");
     }
   };
 
@@ -82,7 +82,7 @@ export default function SignInPage() {
     // 使用全局 Supabase 客户端
     const { error } = await supabaseClient.auth.resetPasswordForEmail(
       form.values.email, {
-      redirectTo: window.location.origin + '/homework/reset-password'
+      redirectTo: window.location.origin + '/homework/#/reset-password'
     });
 
     if (error) {

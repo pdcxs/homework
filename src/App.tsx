@@ -17,7 +17,6 @@ interface GlobalContextType {
   supabaseClient: typeof supabase;
   session: Session | null;
   loading: boolean;
-  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<GlobalContextType | undefined>(undefined);
@@ -36,16 +35,10 @@ function GlobalContextProvider({ children }: { children: React.ReactNode }) {
     getInitialSession();
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/homework';
-  };
-
   const value = {
     session,
     loading,
     supabaseClient: supabase,
-    signOut,
   };
 
   return (

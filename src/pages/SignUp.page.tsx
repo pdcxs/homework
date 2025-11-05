@@ -16,6 +16,7 @@ import {
 import { useForm } from "@mantine/form";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
 import { useAuth } from "@/App";
+import { useNavigate } from "react-router-dom";
 
 interface ClassItem {
     id: number;
@@ -36,6 +37,7 @@ export default function SignUpPage() {
     const [loading, setLoading] = useState(false);
     const [modalOpened, setModalOpened] = useState(false);
     const { supabaseClient } = useAuth();
+    const navigate = useNavigate();
 
     const form = useForm<FormValues>({
         initialValues: {
@@ -123,7 +125,7 @@ export default function SignUpPage() {
 
     const handleModalClose = () => {
         setModalOpened(false);
-        window.location.href = '/homework';
+        navigate("/");
     };
 
     return (

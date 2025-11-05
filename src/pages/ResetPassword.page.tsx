@@ -5,18 +5,20 @@ import { useForm } from '@mantine/form';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { ColorSchemeToggle } from '@/components/ColorSchemeToggle';
 import { useAuth } from '@/App';
+import { useNavigate } from 'react-router-dom';
 
 export default function ResetPasswordPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
     const { supabaseClient: supabase } = useAuth();
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (success) {
             const timer = setTimeout(async () => {
                 await supabase.auth.signOut();
-                window.location.href = '/homework';
+                navigate("/");
             }, 3000);
 
             return () => clearTimeout(timer);

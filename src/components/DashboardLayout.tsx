@@ -26,12 +26,17 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-    const { supabaseClient, signOut } = useAuth();
+    const { supabaseClient } = useAuth();
     const [active, setActive] = useState(0);
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
     const [desktopOpened, { toggle: toggleDesktop }] = useDisclosure(true);
+
+    const signOut = async () => {
+        await supabaseClient.auth.signOut();
+        navigate("/");
+    }
 
     useEffect(() => {
         const {

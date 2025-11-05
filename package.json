@@ -1,11 +1,11 @@
 {
-  "name": "mantine-vite-template",
+  "name": "homework",
   "private": true,
   "type": "module",
   "version": "0.0.0",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc && vite build && cp 404.html dist/",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "npm run eslint && npm run stylelint",
