@@ -14,7 +14,9 @@ import {
     IconEdit,
     IconLogout,
     IconLogout2,
-    IconUser
+    IconUser,
+    IconBook,
+    IconSchool,
 } from '@tabler/icons-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ColorSchemeToggle } from './ColorSchemeToggle';
@@ -26,7 +28,7 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-    const { supabaseClient, setSession } = useAuth();
+    const { supabaseClient, setSession, userRole } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
@@ -50,7 +52,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         return () => subscription.unsubscribe();
     }, [navigate]);
 
-    const navItems = [
+    const navItems = userRole === 'teacher' ? [
+        { icon: IconBook, label: '作业管理', path: '/' },
+        { icon: IconEdit, label: '作业批改', path: '/grading' },
+        { icon: IconSchool, label: '课程管理', path: '/course-management' }
+    ] : [
         { icon: IconEdit, label: '作业', path: '/tasks' },
         { icon: IconUser, label: '用户信息', path: '/profile' },
     ];

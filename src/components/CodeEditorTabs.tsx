@@ -1,3 +1,4 @@
+// components/CodeEditorTabs.tsx
 import { useState } from 'react';
 import {
     Tabs,
@@ -80,9 +81,9 @@ export function CodeEditorTabs({
         return (
             <Group>
                 <Text c="dimmed">暂无文件</Text>
-                <Button 
-                    leftSection={<IconPlus size={16} />} 
-                    variant="light" 
+                <Button
+                    leftSection={<IconPlus size={16} />}
+                    variant="light"
                     size="sm"
                     onClick={onAddFile}
                 >
@@ -95,8 +96,8 @@ export function CodeEditorTabs({
         <Tabs value={activeFile} onChange={onActiveFileChange}>
             <Tabs.List>
                 {files.map(file => (
-                    <Tabs.Tab 
-                        key={file.id} 
+                    <Tabs.Tab
+                        key={file.id}
                         value={file.file_name}
                         onDoubleClick={() => handleStartEditFileName(file.file_name)}
                     >
@@ -142,7 +143,7 @@ export function CodeEditorTabs({
                         m={0}
                         p={0}
                     >
-                        <IconPlus  size={16} />
+                        <IconPlus size={16} />
                     </Button>
                 </Tooltip>
             </Tabs.List>

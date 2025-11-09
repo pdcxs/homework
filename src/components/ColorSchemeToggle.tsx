@@ -1,3 +1,4 @@
+// components/ColorSchemeToggle.tsx
 import { Button, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { Sun, MoonStars } from 'tabler-icons-react';
 

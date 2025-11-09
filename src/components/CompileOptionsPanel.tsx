@@ -1,3 +1,4 @@
+// components/CompileOptionsPanel.tsx
 import { Grid, Textarea } from '@mantine/core';
 
 interface CompileOptionsPanelProps {

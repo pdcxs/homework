@@ -1,3 +1,4 @@
+// components/LoaderComponent.tsx
 import { Center, Loader, Stack, Text } from "@mantine/core";
 
 export default function LoaderComponent({ children }: { children: React.ReactNode }) {

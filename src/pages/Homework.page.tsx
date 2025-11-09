@@ -1,3 +1,4 @@
+// pages/Homework.page.tsx
 import { useEffect, useState } from 'react';
 import { IconEdit } from '@tabler/icons-react';
 import {
@@ -28,6 +29,7 @@ interface HomeworkWithStatus {
   submitted_at: string | null;
   answer_id: bigint | null;
   is_submitted: boolean;
+  published: boolean;
 }
 
 export default function HomeworkPage() {
@@ -156,8 +158,10 @@ export default function HomeworkPage() {
             submitted_at: answer?.submitted_at || null,
             answer_id: answer?.id || null,
             is_submitted: !!answer,
+            published: homework.published,
           };
         })
+        .filter((h) => h.published)
         .sort((h1, h2) => {
           const now = new Date().getTime();
           const h1Deadline = new Date(h1.deadline).getTime();

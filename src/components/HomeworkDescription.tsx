@@ -1,3 +1,4 @@
+// components/HomeworkDescription.tsx
 import { MantineColorScheme, Title } from '@mantine/core';
 import MDEditor from '@uiw/react-md-editor';
 

@@ -1,4 +1,4 @@
-// /src/components/RunResultPanel.tsx
+// components/RunResultPanel.tsx
 import {
     Paper,
     Stack,
@@ -53,7 +53,7 @@ export function RunResultPanel({
                                 </Text>
                             )}
                             {runResult.allTestsPassed !== undefined && (
-                                <Alert 
+                                <Alert
                                     color={runResult.allTestsPassed ? 'green' : 'orange'}
                                     variant="light"
                                     p="xs"
@@ -62,7 +62,7 @@ export function RunResultPanel({
                                 </Alert>
                             )}
                         </Group>
-                        
+
                         {/* 测试用例结果 */}
                         {runResult.testResults && (
                             <div>
@@ -71,8 +71,8 @@ export function RunResultPanel({
                                     {runResult.testResults.map((test, index) => (
                                         <Paper key={index} p="sm" withBorder>
                                             <Group>
-                                                <ThemeIcon 
-                                                    color={test.passed ? 'green' : 'red'} 
+                                                <ThemeIcon
+                                                    color={test.passed ? 'green' : 'red'}
                                                     size="sm"
                                                 >
                                                     {test.passed ? <IconCheck size={14} /> : <IconX size={14} />}
@@ -86,7 +86,7 @@ export function RunResultPanel({
                                 </Stack>
                             </div>
                         )}
-                        
+
                         {runResult.output && (
                             <div>
                                 <Text fw={500} size="sm" mb="xs">输出:</Text>
@@ -118,7 +118,7 @@ export function RunResultPanel({
                     >
                         测试代码
                     </Button>
-                    
+
                     {/* 运行按钮 */}
                     <Button
                         leftSection={<IconRun size={16} />}
@@ -129,7 +129,7 @@ export function RunResultPanel({
                     >
                         运行代码
                     </Button>
-                    
+
                     {/* 提交按钮 */}
                     <Button
                         leftSection={<IconSend size={16} />}

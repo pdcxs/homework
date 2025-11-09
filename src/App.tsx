@@ -16,8 +16,9 @@ const supabase = createClient(
 interface GlobalContextType {
   supabaseClient: typeof supabase;
   session: Session | null;
+  userRole: 'student' | 'teacher' | null;
   loading: boolean;
-  setSession: React.Dispatch<React.SetStateAction<Session | null>>,
+  setSession: React.Dispatch<React.SetStateAction<Session | null>>;
 }
 
 const AuthContext = createContext<GlobalContextType | undefined>(undefined);
@@ -25,19 +26,64 @@ const AuthContext = createContext<GlobalContextType | undefined>(undefined);
 function GlobalContextProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<'student' | 'teacher' | null>(null);
+
+  const fetchUserRole = async (userId: string | undefined) => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .rpc('get_user_role', { user_id: userId });
+
+      if (error) {
+        console.error('RPC调用失败:', error);
+        throw error;
+      }
+
+      console.log('获取到的用户角色:', data);
+      setUserRole(data);
+    } catch (error) {
+      console.error('获取用户角色失败:', error);
+      setUserRole(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const getInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
-      setLoading(false);
+
+      if (session?.user?.id) {
+        await fetchUserRole(session.user.id);
+      } else {
+        setLoading(false);
+      }
     };
 
     getInitialSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      if (session?.user?.id) {
+        await fetchUserRole(session.user.id);
+      } else {
+        setUserRole(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const value = {
     session,
+    userRole,
     loading,
     supabaseClient: supabase,
     setSession,

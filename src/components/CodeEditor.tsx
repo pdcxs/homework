@@ -1,4 +1,4 @@
-// CodeEditor
+// components/CodeEditor.tsx
 import Editor from '@monaco-editor/react';
 import { MantineColorScheme } from '@mantine/core';
 
