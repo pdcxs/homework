@@ -176,7 +176,7 @@ export function UserProfilePage() {
         </Alert>
       )}
 
-      <Title order={1}>个人信息管理</Title>
+      <Title order={2}>个人信息管理</Title>
 
       <Card shadow="md" p="xl" radius="lg" withBorder>
         <form>

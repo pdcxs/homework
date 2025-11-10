@@ -10,7 +10,6 @@ import {
     Stack,
     LoadingOverlay,
     Button,
-    Group,
     Table,
     Badge,
     Alert
@@ -24,6 +23,7 @@ declare global {
     interface Window {
         $typst: any;
         TypstSnippet?: any;
+        __typstInitialized?: boolean;
     }
 }
 
@@ -34,7 +34,7 @@ interface Review {
     grade: string;
     total_comment: string;
     comments: Comment[];
-    storage_path: string; // 添加存储路径，用于后续下载文件
+    storage_path: string;
 }
 
 interface Comment {
@@ -62,95 +62,136 @@ const StudentReviewPage: React.FC = () => {
 
     const fileCacheRef = useRef<Record<number, FileContent[]>>({});
     const fetchedReviewsRef = useRef(false);
-
     const scriptRef = useRef<HTMLScriptElement | null>(null);
+    const isMountedRef = useRef(true);
 
-    // 动态加载 typst 脚本
+    // 清理函数
     useEffect(() => {
-        if (scriptRef.current) return;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    // 简化的 Typst 初始化 - 避免复杂的配置
+    useEffect(() => {
+        if (scriptRef.current || window.__typstInitialized) {
+            if (window.__typstInitialized) {
+                setTypstLoaded(true);
+            }
+            return;
+        }
+
+        const initializeTypst = async () => {
+            try {
+                if (window.$typst && !window.$typst.__initialized) {
+                    if (typeof window.$typst.init === 'function') {
+                        await window.$typst.init({
+                            compiler: {
+                                getModule: () =>
+                                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+                            },
+                            renderer: {
+                                getModule: () =>
+                                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+                            },
+                        });
+                    } else {
+                        // 回退到旧 API，但尽量减少配置
+                        window.$typst.setCompilerInitOptions?.({
+                            getModule: () =>
+                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+                        });
+
+                        window.$typst.setRendererInitOptions?.({
+                            getModule: () =>
+                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+                        });
+                    }
+
+                    // 配置包注册表
+                    if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
+                        console.log('Configuring package registry...');
+                        try {
+                            const registry = await window.TypstSnippet.fetchPackageRegistry();
+                            window.$typst?.use?.(registry);
+                            console.log('Package registry configured successfully');
+                        } catch (registryError) {
+                            console.warn('Package registry configuration failed:', registryError);
+                        }
+                    } else {
+                        console.warn('TypstSnippet.fetchPackageRegistry not available, package imports may fail');
+                    }
+
+                    // 预加载字体资源
+                    if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
+                        try {
+                            window.$typst?.use?.(
+                                window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
+                            );
+                            console.log('Font assets preloaded');
+                        } catch (fontError) {
+                            console.warn('Font preloading failed:', fontError);
+                        }
+                    }
+
+                    window.$typst.__initialized = true;
+                    window.__typstInitialized = true;
+
+                    if (isMountedRef.current) {
+                        setTypstLoaded(true);
+                        setTypstError(null);
+                    }
+                    console.log('Typst 初始化成功');
+                }
+            } catch (err) {
+                console.error('Typst 初始化失败:', err);
+                if (isMountedRef.current) {
+                    setTypstError('Typst 初始化失败: ' + (err as Error).message);
+                }
+            }
+        };
+
+        if (window.$typst) {
+            initializeTypst();
+            return;
+        }
 
         const script = document.createElement('script');
         script.type = 'module';
         script.src = 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst.ts/dist/esm/contrib/all-in-one-lite.bundle.js';
         script.id = 'typst';
+        script.crossOrigin = 'anonymous';
 
-        script.onload = async () => {
-            try {
-                window.$typst?.setCompilerInitOptions?.({
-                    getModule: () =>
-                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-                });
+        script.onload = () => {
+            setTimeout(() => {
+                initializeTypst();
+            }, 100);
+        };
 
-                window.$typst?.setRendererInitOptions?.({
-                    getModule: () =>
-                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-                });
-
-                // 配置包注册表
-                if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
-                    console.log('Configuring package registry...');
-                    try {
-                        const registry = await window.TypstSnippet.fetchPackageRegistry();
-                        window.$typst?.use?.(registry);
-                        console.log('Package registry configured successfully');
-                    } catch (registryError) {
-                        console.warn('Package registry configuration failed:', registryError);
-                    }
-                } else {
-                    console.warn('TypstSnippet.fetchPackageRegistry not available, package imports may fail');
-                }
-
-                // 预加载字体资源
-                if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
-                    try {
-                        window.$typst?.use?.(
-                            window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
-                        );
-                        console.log('Font assets preloaded');
-                    } catch (fontError) {
-                        console.warn('Font preloading failed:', fontError);
-                    }
-                }
-
-                setTypstLoaded(true);
-                setTypstError(null);
-                console.log('Typst initialized successfully');
-            } catch (err) {
-                console.error('Failed to initialize Typst:', err);
-                setTypstError('初始化 Typst 编译器失败: ' + (err as Error).message);
+        script.onerror = () => {
+            console.error('加载 Typst 脚本失败');
+            if (isMountedRef.current) {
+                setTypstError('加载 Typst 编译器失败，请检查网络连接');
             }
-        };
-
-        script.onerror = (err) => {
-            console.error('Failed to load Typst script:', err);
-            setTypstError('加载 Typst 编译器失败，请检查网络连接');
-        };
-
-        // 添加错误处理以防止未捕获的异常
-        script.onabort = () => {
-            console.error('Typst script loading aborted');
-            setTypstError('Typst 编译器加载被中止');
         };
 
         document.head.appendChild(script);
         scriptRef.current = script;
 
-        return () => {
-            if (scriptRef.current) {
-                document.head.removeChild(scriptRef.current);
-                scriptRef.current = null;
-            }
-        };
+        // 不在卸载时移除脚本，避免重复加载问题
     }, []);
 
     const fetchReviews = useCallback(async () => {
         if (fetchedReviewsRef.current) {
-            console.log('已经获取过 reviews，跳过重复获取');
             return;
         }
+
         try {
+            if (!isMountedRef.current) return;
+
             setLoading(true);
             setError(null);
+
             if (!session) {
                 throw new Error('用户未登录');
             }
@@ -197,16 +238,22 @@ const StudentReviewPage: React.FC = () => {
                 storage_path: check.answers.storage_path
             }));
 
-            setReviews(reviewData);
-            fetchedReviewsRef.current = true;
-            console.log('批改记录设置完成');
+            if (isMountedRef.current) {
+                setReviews(reviewData);
+                fetchedReviewsRef.current = true;
+                console.log('批改记录设置完成');
+            }
         } catch (err: any) {
             console.error('获取批改记录失败:', err);
-            setError(`获取批改记录失败: ${err.message}`);
+            if (isMountedRef.current) {
+                setError(`获取批改记录失败: ${err.message}`);
+            }
         } finally {
-            setLoading(false);
+            if (isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    }, [session, supabaseClient]);
+    }, [supabaseClient]);
 
     useEffect(() => {
         if (session && !fetchedReviewsRef.current) {
@@ -217,8 +264,7 @@ const StudentReviewPage: React.FC = () => {
     // 根据文件名获取对应的语言
     const getLanguageByFileName = (fileName: string): string => {
         const extension = fileName.toLowerCase().split('.').pop() || '';
-
-        return EXTENSION_MAP[extension] || 'text'; // 默认为 text
+        return EXTENSION_MAP[extension] || 'text';
     };
 
     const fetchFileContents = async (storagePath: string): Promise<FileContent[]> => {
@@ -269,10 +315,13 @@ const StudentReviewPage: React.FC = () => {
 
         let source = `#import "@preview/zebraw:0.6.0": *\n\n`;
         source += `#set page(margin: 1in)\n\n`;
-
+        source += `#show heading.where(level: 1): set text(size: 30pt)\n\n`
+        source += `#show heading.where(level: 2): set text(size: 20pt)\n\n`
+        source += `#set text(size: 15pt)\n\n`
         source += `= ${review.homework_title}\n\n`;
-        source += `**评分:** ${review.grade}\n\n`;
-        source += `**总体评语:**\n${review.total_comment}\n\n`;
+        source += `== 评分\n\n`
+        source += `#box(stroke: black, inset: 10pt)[*${review.grade}*]\n\n`;
+        source += `== 总体评语\n\n${review.total_comment}\n\n`;
 
         files.forEach((file) => {
             source += `== ${file.file_name}\n\n`;
@@ -300,6 +349,8 @@ const StudentReviewPage: React.FC = () => {
             const language = getLanguageByFileName(file.file_name);
             source += `  \`\`\`${language}\n` + codeContent + '\n  ```\n)\n\n';
         });
+
+        console.log(source)
 
         return source;
     };
@@ -333,7 +384,6 @@ const StudentReviewPage: React.FC = () => {
         try {
             console.log('开始获取文件内容...');
 
-            // 检查缓存中是否已有文件内容
             let files: FileContent[];
             if (fileCacheRef.current[review.id]) {
                 console.log('使用缓存的文件内容');
@@ -355,11 +405,9 @@ const StudentReviewPage: React.FC = () => {
             const pdfData = await window.$typst.pdf({ mainContent: source });
             console.log('PDF 编译完成，大小:', pdfData.length);
 
-            // 创建 Blob 并生成 URL
             const pdfFile = new Blob([pdfData], { type: 'application/pdf' });
             pdfUrl = URL.createObjectURL(pdfFile);
 
-            // 在新标签页打开 PDF
             const newWindow = window.open(pdfUrl, '_blank');
 
             if (!newWindow) {
@@ -367,35 +415,25 @@ const StudentReviewPage: React.FC = () => {
                 return;
             }
 
-            const checkWindowClosed = setInterval(() => {
-                if (newWindow.closed) {
-                    clearInterval(checkWindowClosed);
-                    console.log('PDF 窗口已关闭');
-                    // 窗口关闭后清理资源
-                    if (pdfUrl) {
-                        URL.revokeObjectURL(pdfUrl);
-                        pdfUrl = null;
-                    }
-                }
-            }, 1000);
-
-            // 清理 URL 对象（延迟清理以确保新标签页能加载）
-            setTimeout(() => {
+            // 简化的窗口关闭监听
+            const cleanup = () => {
                 if (pdfUrl) {
                     URL.revokeObjectURL(pdfUrl);
-                    pdfUrl = null;
                 }
-            }, 5000);
+            };
+
+            // 5秒后自动清理，无论窗口是否关闭
+            setTimeout(cleanup, 5000);
 
         } catch (err: any) {
             console.error('生成 PDF 失败:', err);
-            if (err.message && err.message.includes('diagnostic')) {
-                setError('编译错误: ' + JSON.stringify(err.message));
-            } else {
+            if (isMountedRef.current) {
                 setError('生成 PDF 失败: ' + (err as Error).message);
             }
         } finally {
-            setPdfLoading(null);
+            if (isMountedRef.current) {
+                setPdfLoading(null);
+            }
         }
     };
 
@@ -441,27 +479,16 @@ const StudentReviewPage: React.FC = () => {
     return (
         <Container size="xl" py="xl">
             <Stack gap="xl">
-                {/* 头部信息 */}
                 <Flex justify="space-between" align="center">
-                    <Group>
-                        <Button
-                            variant="subtle"
-                            leftSection={<IconArrowLeft size={16} />}
-                            onClick={() => navigate('/tasks')}
-                        >
-                            返回
-                        </Button>
-                        <div>
-                            <Title order={1}>作业批改</Title>
-                            <Text c="dimmed">查看教师批改反馈</Text>
-                        </div>
-                    </Group>
+                    <div>
+                        <Title order={2}>作业批改</Title>
+                        <Text c="dimmed">查看教师批改反馈</Text>
+                    </div>
                     <Text c="dimmed">
                         共 {reviews.length} 份批改
                     </Text>
                 </Flex>
 
-                {/* 编译器状态提示 */}
                 {renderCompilerStatus()}
 
                 {error && (
@@ -508,10 +535,7 @@ const StudentReviewPage: React.FC = () => {
                                             </Text>
                                         </Table.Td>
                                         <Table.Td>
-                                            <Badge
-                                                color="blue"
-                                                variant="light"
-                                            >
+                                            <Badge color="blue" variant="light">
                                                 {review.grade}
                                             </Badge>
                                         </Table.Td>
