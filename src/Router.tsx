@@ -13,6 +13,8 @@ import GradingPage from './pages/Grading.page';
 import CourseManagementPage from './pages/CourseManagement.page';
 import HomeworkCreatePage from './pages/HomeworkCreate.page';
 import HomeworkSubmitPage from './pages/HomeworkSubmit.page';
+import GradingDetailPage from './pages/GradingDetail.page';
+import GradingCheckPage from './pages/GradingCheck.page';
 
 export function Router() {
   const { session, loading, userRole } = useAuth(); // 假设 useAuth 返回 userRole
@@ -101,6 +103,24 @@ export function Router() {
       path: '/course-management',
       element: session ?
         <DashboardLayout><CourseManagementPage /></DashboardLayout> :
+        <Navigate to="/" replace />,
+    },
+    {
+      path: '/grading',
+      element: session && userRole === 'teacher' ?
+        <DashboardLayout><GradingPage /></DashboardLayout> :
+        <Navigate to="/" replace />,
+    },
+    {
+      path: '/grading/:homeworkId',
+      element: session && userRole === 'teacher' ?
+        <DashboardLayout><GradingDetailPage /></DashboardLayout> :
+        <Navigate to="/" replace />,
+    },
+    {
+      path: '/grading/check/:answerId',
+      element: session && userRole === 'teacher' ?
+        <DashboardLayout><GradingCheckPage /></DashboardLayout> :
         <Navigate to="/" replace />,
     },
   ];

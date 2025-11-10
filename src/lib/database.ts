@@ -195,6 +195,7 @@ export const submitHomework = async (
     homeworkId: bigint,
     userId: string,
     fileContents: Record<string, string>,
+    language?: string,
     result?: string,
 ): Promise<boolean> => {
     try {
@@ -249,6 +250,7 @@ export const submitHomework = async (
                 storage_path: storagePath,
                 submitted_at: new Date().toISOString(),
                 result: result,
+                language: language,
             }, {
                 onConflict: 'homework_id,student_id'
             });

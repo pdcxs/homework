@@ -5,7 +5,6 @@ import { Stack, Grid, Group, Text, Paper, Button, Title, Modal } from '@mantine/
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { useAuth } from '@/App';
-import { useMantineColorScheme } from '@mantine/core';
 import LoaderComponent from '@/components/LoaderComponent';
 import { HomeworkHeader } from '@/components/HomeworkHeader';
 import { CompileOptionsPanel } from '@/components/CompileOptionsPanel';
@@ -35,7 +34,6 @@ export default function HomeworkSubmitPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { supabaseClient: supabase, userRole } = useAuth();
-    const { colorScheme } = useMantineColorScheme();
 
     // 检查是否为预览模式
     const isPreview = searchParams.get('preview') === 'true';
@@ -346,6 +344,7 @@ export default function HomeworkSubmitPage() {
                 homework.id,
                 user.id,
                 fileContents,
+                form.values.language,
                 hasTestCases ? "通过 " + runResult?.testResults?.filter((r) => r.passed).length.toString() + " 个测试" +
                     "未通过 " + runResult?.testResults?.filter((r) => !r.passed).length.toString() + " 个测试"
                     : runResult?.output
@@ -424,7 +423,6 @@ export default function HomeworkSubmitPage() {
                             fileContents={fileContents}
                             activeFile={activeFile}
                             language={form.values.language}
-                            colorScheme={colorScheme}
                             onFileChange={handleFileContentChange}
                             onActiveFileChange={setActiveFile}
                             onAddFile={handleAddFile}

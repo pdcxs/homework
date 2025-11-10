@@ -1,6 +1,6 @@
 // components/CodeEditor.tsx
 import Editor from '@monaco-editor/react';
-import { MantineColorScheme } from '@mantine/core';
+import { useMantineColorScheme } from '@mantine/core';
 
 interface CodeEditorProps {
   value: string;
@@ -8,7 +8,6 @@ interface CodeEditorProps {
   language: string;
   readOnly?: boolean;
   height?: string;
-  colorScheme?: MantineColorScheme;
 }
 
 export default function CodeEditor({
@@ -17,22 +16,13 @@ export default function CodeEditor({
   language,
   readOnly = false,
   height = '400px',
-  colorScheme = 'light',
 }: CodeEditorProps) {
-  const editorLanguageMap: Record<string, string> = {
-    cpp: 'cpp',
-    java: 'java',
-    python: 'python',
-    csharp: 'csharp',
-    go: 'go',
-    haskell: 'haskell',
-    list: 'lisp',
-  };
+  const { colorScheme } = useMantineColorScheme();
 
   return (
     <Editor
       height={height}
-      language={editorLanguageMap[language] || 'plaintext'}
+      language={language}
       value={value}
       onChange={onChange}
       width="100%"

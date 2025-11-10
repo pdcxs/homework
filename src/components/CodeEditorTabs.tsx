@@ -8,7 +8,6 @@ import {
     TextInput,
     Button,
     Tooltip,
-    MantineColorScheme
 } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import CodeEditor from '@/components/CodeEditor';
@@ -27,7 +26,6 @@ interface CodeEditorTabsProps {
     fileContents: Record<string, string>;
     activeFile: string | null;
     language: string;
-    colorScheme: MantineColorScheme;
     onFileChange: (fileName: string, content: string) => void;
     onActiveFileChange: (fileName: string | null) => void;
     onAddFile: () => void;
@@ -40,7 +38,6 @@ export function CodeEditorTabs({
     fileContents,
     activeFile,
     language,
-    colorScheme,
     onFileChange,
     onActiveFileChange,
     onAddFile,
@@ -156,7 +153,6 @@ export function CodeEditorTabs({
                         language={language}
                         readOnly={!file.editable}
                         height="400px"
-                        colorScheme={colorScheme}
                     />
                 </Tabs.Panel>
             ))}

@@ -51,13 +51,11 @@ export default function HomeworkPage() {
       .on(
         'postgres_changes',
         {
-          event: '*', // 监听所有事件：INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
           table: 'homeworks'
         },
-        (payload: RealtimePostgresChangesPayload<any>) => {
-          console.log('作业数据发生变化:', payload);
-          // 当homeworks表有变化时重新获取数据
+        (_payload: RealtimePostgresChangesPayload<any>) => {
           fetchHomeworks();
         }
       )

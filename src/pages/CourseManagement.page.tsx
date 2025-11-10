@@ -124,7 +124,7 @@ const CourseManagementPage: React.FC = () => {
     const fetchCourses = async () => {
         try {
             setLoading(true);
-            console.log('开始获取课程数据...');
+            // console.log('开始获取课程数据...');
 
             const { data: { user } } = await supabaseClient.auth.getUser();
             if (!user) throw new Error('用户未登录');
@@ -140,7 +140,7 @@ const CourseManagementPage: React.FC = () => {
                 throw error;
             }
 
-            console.log('获取到的课程数据:', data);
+            // console.log('获取到的课程数据:', data);
             setCourses(data || []);
         } catch (err: any) {
             console.error('获取课程失败:', err);
@@ -152,7 +152,7 @@ const CourseManagementPage: React.FC = () => {
 
     const fetchClasses = async () => {
         try {
-            console.log('开始获取班级数据...');
+            // console.log('开始获取班级数据...');
 
             const { data, error } = await supabaseClient
                 .from('classes')
@@ -164,7 +164,7 @@ const CourseManagementPage: React.FC = () => {
                 throw error;
             }
 
-            console.log('获取到的班级数据:', data);
+            // console.log('获取到的班级数据:', data);
             setClasses(data || []);
         } catch (err: any) {
             console.error('获取班级失败:', err);
@@ -175,10 +175,10 @@ const CourseManagementPage: React.FC = () => {
     const handleCourseSubmit = async (values: CourseFormValues) => {
         try {
             setError(null);
-            console.log('提交课程表单:', values);
+            // console.log('提交课程表单:', values);
 
             const user = await supabaseClient.auth.getUser();
-            console.log('当前用户:', user);
+            // console.log('当前用户:', user);
 
             if (!user.data.user) {
                 throw new Error('无法获取用户信息');
