@@ -1,5 +1,5 @@
 // pages/StudentReview.page.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Paper,
@@ -59,7 +59,9 @@ const StudentReviewPage: React.FC = () => {
     const [pdfLoading, setPdfLoading] = useState<number | null>(null);
     const [typstLoaded, setTypstLoaded] = useState(false);
     const [typstError, setTypstError] = useState<string | null>(null);
-    const [fileCache, setFileCache] = useState<Record<number, FileContent[]>>({}); // 缓存已下载的文件
+
+    const fileCacheRef = useRef<Record<number, FileContent[]>>({});
+    const fetchedReviewsRef = useRef(false);
 
     const scriptRef = useRef<HTMLScriptElement | null>(null);
 
@@ -74,31 +76,15 @@ const StudentReviewPage: React.FC = () => {
 
         script.onload = async () => {
             try {
-                // 使用新的初始化方式 - 传递单个对象
-                if (window.$typst && window.$typst.init) {
-                    await window.$typst.init({
-                        compiler: {
-                            getModule: () =>
-                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-                        },
-                        renderer: {
-                            getModule: () =>
-                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-                        },
-                    });
-                } else {
-                    // 回退到旧的初始化方式，但使用对象参数
-                    console.warn('使用旧的初始化方式，可能存在警告');
-                    window.$typst?.setCompilerInitOptions?.({
-                        getModule: () =>
-                            'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-                    });
+                window.$typst?.setCompilerInitOptions?.({
+                    getModule: () =>
+                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+                });
 
-                    window.$typst?.setRendererInitOptions?.({
-                        getModule: () =>
-                            'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-                    });
-                }
+                window.$typst?.setRendererInitOptions?.({
+                    getModule: () =>
+                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+                });
 
                 // 配置包注册表
                 if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
@@ -157,13 +143,11 @@ const StudentReviewPage: React.FC = () => {
         };
     }, []);
 
-    useEffect(() => {
-        if (session) {
-            fetchReviews();
+    const fetchReviews = useCallback(async () => {
+        if (fetchedReviewsRef.current) {
+            console.log('已经获取过 reviews，跳过重复获取');
+            return;
         }
-    }, [session]);
-
-    const fetchReviews = async () => {
         try {
             setLoading(true);
             setError(null);
@@ -214,6 +198,7 @@ const StudentReviewPage: React.FC = () => {
             }));
 
             setReviews(reviewData);
+            fetchedReviewsRef.current = true;
             console.log('批改记录设置完成');
         } catch (err: any) {
             console.error('获取批改记录失败:', err);
@@ -221,7 +206,13 @@ const StudentReviewPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session, supabaseClient]);
+
+    useEffect(() => {
+        if (session && !fetchedReviewsRef.current) {
+            fetchReviews();
+        }
+    }, [session, fetchReviews]);
 
     // 根据文件名获取对应的语言
     const getLanguageByFileName = (fileName: string): string => {
@@ -330,25 +321,27 @@ const StudentReviewPage: React.FC = () => {
             return;
         }
 
+        if (pdfLoading === review.id) {
+            return;
+        }
+
         setPdfLoading(review.id);
         setError(null);
+
+        let pdfUrl: string | null = null;
 
         try {
             console.log('开始获取文件内容...');
 
             // 检查缓存中是否已有文件内容
             let files: FileContent[];
-            if (fileCache[review.id]) {
+            if (fileCacheRef.current[review.id]) {
                 console.log('使用缓存的文件内容');
-                files = fileCache[review.id];
+                files = fileCacheRef.current[review.id];
             } else {
                 console.log('下载文件内容...');
                 files = await fetchFileContents(review.storage_path);
-                // 缓存文件内容
-                setFileCache(prev => ({
-                    ...prev,
-                    [review.id]: files
-                }));
+                fileCacheRef.current[review.id] = files;
             }
 
             if (files.length === 0) {
@@ -364,20 +357,34 @@ const StudentReviewPage: React.FC = () => {
 
             // 创建 Blob 并生成 URL
             const pdfFile = new Blob([pdfData], { type: 'application/pdf' });
-            const pdfUrl = URL.createObjectURL(pdfFile);
+            pdfUrl = URL.createObjectURL(pdfFile);
 
             // 在新标签页打开 PDF
             const newWindow = window.open(pdfUrl, '_blank');
 
             if (!newWindow) {
                 setError('请允许弹出窗口以查看 PDF');
-                URL.revokeObjectURL(pdfUrl);
                 return;
             }
 
+            const checkWindowClosed = setInterval(() => {
+                if (newWindow.closed) {
+                    clearInterval(checkWindowClosed);
+                    console.log('PDF 窗口已关闭');
+                    // 窗口关闭后清理资源
+                    if (pdfUrl) {
+                        URL.revokeObjectURL(pdfUrl);
+                        pdfUrl = null;
+                    }
+                }
+            }, 1000);
+
             // 清理 URL 对象（延迟清理以确保新标签页能加载）
             setTimeout(() => {
-                URL.revokeObjectURL(pdfUrl);
+                if (pdfUrl) {
+                    URL.revokeObjectURL(pdfUrl);
+                    pdfUrl = null;
+                }
             }, 5000);
 
         } catch (err: any) {
