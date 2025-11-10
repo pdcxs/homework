@@ -74,30 +74,56 @@ const StudentReviewPage: React.FC = () => {
 
         script.onload = async () => {
             try {
-                window.$typst.setCompilerInitOptions({
-                    getModule: () =>
-                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-                });
+                // 使用新的初始化方式 - 传递单个对象
+                if (window.$typst && window.$typst.init) {
+                    await window.$typst.init({
+                        compiler: {
+                            getModule: () =>
+                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+                        },
+                        renderer: {
+                            getModule: () =>
+                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+                        },
+                    });
+                } else {
+                    // 回退到旧的初始化方式，但使用对象参数
+                    console.warn('使用旧的初始化方式，可能存在警告');
+                    window.$typst?.setCompilerInitOptions?.({
+                        getModule: () =>
+                            'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+                    });
 
-                window.$typst.setRendererInitOptions({
-                    getModule: () =>
-                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-                });
+                    window.$typst?.setRendererInitOptions?.({
+                        getModule: () =>
+                            'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+                    });
+                }
 
+                // 配置包注册表
                 if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
                     console.log('Configuring package registry...');
-                    window.$typst.use(await window.TypstSnippet.fetchPackageRegistry());
-                    console.log('Package registry configured successfully');
+                    try {
+                        const registry = await window.TypstSnippet.fetchPackageRegistry();
+                        window.$typst?.use?.(registry);
+                        console.log('Package registry configured successfully');
+                    } catch (registryError) {
+                        console.warn('Package registry configuration failed:', registryError);
+                    }
                 } else {
                     console.warn('TypstSnippet.fetchPackageRegistry not available, package imports may fail');
                 }
 
                 // 预加载字体资源
                 if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
-                    window.$typst.use(
-                        window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
-                    );
-                    console.log('Font assets preloaded');
+                    try {
+                        window.$typst?.use?.(
+                            window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
+                        );
+                        console.log('Font assets preloaded');
+                    } catch (fontError) {
+                        console.warn('Font preloading failed:', fontError);
+                    }
                 }
 
                 setTypstLoaded(true);
@@ -112,6 +138,12 @@ const StudentReviewPage: React.FC = () => {
         script.onerror = (err) => {
             console.error('Failed to load Typst script:', err);
             setTypstError('加载 Typst 编译器失败，请检查网络连接');
+        };
+
+        // 添加错误处理以防止未捕获的异常
+        script.onabort = () => {
+            console.error('Typst script loading aborted');
+            setTypstError('Typst 编译器加载被中止');
         };
 
         document.head.appendChild(script);
