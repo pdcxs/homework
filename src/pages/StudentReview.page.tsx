@@ -1,5 +1,5 @@
 // pages/StudentReview.page.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Paper,
@@ -13,15 +13,19 @@ import {
     Group,
     Table,
     Badge,
-    Grid,
-    Textarea,
-    Divider,
-    Card
+    Alert
 } from '@mantine/core';
-import { IconArrowLeft, IconCheck, IconX, IconFileCode } from '@tabler/icons-react';
+import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-import { CodeEditorTabs } from '@/components/CodeEditorTabs';
-import CodeEditor from '@/components/CodeEditor';
+import { EXTENSION_MAP } from '@/lib/wandbox';
+
+// 声明全局 typst 类型
+declare global {
+    interface Window {
+        $typst: any;
+        TypstSnippet?: any;
+    }
+}
 
 interface Review {
     id: number;
@@ -30,7 +34,7 @@ interface Review {
     grade: string;
     total_comment: string;
     comments: Comment[];
-    files: FileContent[];
+    storage_path: string; // 添加存储路径，用于后续下载文件
 }
 
 interface Comment {
@@ -52,23 +56,90 @@ const StudentReviewPage: React.FC = () => {
     const [selectedReview, setSelectedReview] = useState<Review | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [fileContents, setFileContents] = useState<Record<string, string>>({});
-    const [activeFile, setActiveFile] = useState<string | null>(null);
+    const [pdfLoading, setPdfLoading] = useState<number | null>(null);
+    const [typstLoaded, setTypstLoaded] = useState(false);
+    const [typstError, setTypstError] = useState<string | null>(null);
+    const [fileCache, setFileCache] = useState<Record<number, FileContent[]>>({}); // 缓存已下载的文件
+
+    const scriptRef = useRef<HTMLScriptElement | null>(null);
+
+    // 动态加载 typst 脚本
+    useEffect(() => {
+        if (scriptRef.current) return;
+
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst.ts/dist/esm/contrib/all-in-one-lite.bundle.js';
+        script.id = 'typst';
+
+        script.onload = async () => {
+            try {
+                window.$typst.setCompilerInitOptions({
+                    getModule: () =>
+                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+                });
+
+                window.$typst.setRendererInitOptions({
+                    getModule: () =>
+                        'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+                });
+
+                if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
+                    console.log('Configuring package registry...');
+                    window.$typst.use(await window.TypstSnippet.fetchPackageRegistry());
+                    console.log('Package registry configured successfully');
+                } else {
+                    console.warn('TypstSnippet.fetchPackageRegistry not available, package imports may fail');
+                }
+
+                // 预加载字体资源
+                if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
+                    window.$typst.use(
+                        window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
+                    );
+                    console.log('Font assets preloaded');
+                }
+
+                setTypstLoaded(true);
+                setTypstError(null);
+                console.log('Typst initialized successfully');
+            } catch (err) {
+                console.error('Failed to initialize Typst:', err);
+                setTypstError('初始化 Typst 编译器失败: ' + (err as Error).message);
+            }
+        };
+
+        script.onerror = (err) => {
+            console.error('Failed to load Typst script:', err);
+            setTypstError('加载 Typst 编译器失败，请检查网络连接');
+        };
+
+        document.head.appendChild(script);
+        scriptRef.current = script;
+
+        return () => {
+            if (scriptRef.current) {
+                document.head.removeChild(scriptRef.current);
+                scriptRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
-        fetchReviews();
-    }, []);
+        if (session) {
+            fetchReviews();
+        }
+    }, [session]);
 
     const fetchReviews = async () => {
         try {
             setLoading(true);
             setError(null);
-
             if (!session) {
                 throw new Error('用户未登录');
             }
 
-            // 获取学生的批改记录
+            console.log('开始获取批改记录...');
             const { data: checks, error: checksError } = await supabaseClient
                 .from('checks')
                 .select(`
@@ -94,30 +165,24 @@ const StudentReviewPage: React.FC = () => {
 
             if (checksError) throw checksError;
 
-            console.log('获取到的批改记录:', checks);
+            console.log('获取到的批改记录数量:', checks?.length || 0);
 
-            const reviewData: Review[] = await Promise.all(
-                (checks || []).map(async (check: any) => {
-                    // 获取文件内容
-                    const files = await fetchFileContents(check.answers.storage_path);
-
-                    return {
-                        id: check.id,
-                        homework_title: check.answers.homeworks.title,
-                        graded_at: check.created_at,
-                        grade: check.grade,
-                        total_comment: check.total_comment || '',
-                        comments: (check.comments_contents || []).map((content: string, index: number) => ({
-                            content,
-                            file: check.comments_files?.[index] || '',
-                            line: check.comments_lines?.[index] || 0
-                        })),
-                        files
-                    };
-                })
-            );
+            const reviewData: Review[] = (checks || []).map((check: any) => ({
+                id: check.id,
+                homework_title: check.answers.homeworks.title,
+                graded_at: check.created_at,
+                grade: check.grade,
+                total_comment: check.total_comment || '',
+                comments: (check.comments_contents || []).map((content: string, index: number) => ({
+                    content,
+                    file: check.comments_files?.[index] || '',
+                    line: check.comments_lines?.[index] || 0
+                })),
+                storage_path: check.answers.storage_path
+            }));
 
             setReviews(reviewData);
+            console.log('批改记录设置完成');
         } catch (err: any) {
             console.error('获取批改记录失败:', err);
             setError(`获取批改记录失败: ${err.message}`);
@@ -126,20 +191,29 @@ const StudentReviewPage: React.FC = () => {
         }
     };
 
+    // 根据文件名获取对应的语言
+    const getLanguageByFileName = (fileName: string): string => {
+        const extension = fileName.toLowerCase().split('.').pop() || '';
+
+        return EXTENSION_MAP[extension] || 'text'; // 默认为 text
+    };
+
     const fetchFileContents = async (storagePath: string): Promise<FileContent[]> => {
         try {
+            console.log('获取文件内容，路径:', storagePath);
             const { data: files, error: filesError } = await supabaseClient
                 .storage
                 .from('homework')
-                .list(storagePath + "/");
+                .list(storagePath);
 
             if (filesError) {
                 console.error('获取文件列表失败:', filesError);
                 return [];
             }
 
-            const fileContents: FileContent[] = [];
+            console.log('找到的文件数量:', files?.length || 0);
 
+            const fileContents: FileContent[] = [];
             for (const file of files || []) {
                 try {
                     const filePath = `${storagePath}/${file.name}`;
@@ -147,20 +221,19 @@ const StudentReviewPage: React.FC = () => {
                         .storage
                         .from('homework')
                         .download(filePath);
-
                     if (!downloadError && fileData) {
                         const text = await fileData.text();
                         fileContents.push({
                             file_name: file.name,
                             file_content: text,
-                            editable: false // 学生查看模式，不可编辑
+                            editable: false
                         });
+                        console.log(`成功读取文件: ${file.name}`);
                     }
                 } catch (fileErr) {
                     console.error(`读取文件 ${file.name} 失败:`, fileErr);
                 }
             }
-
             return fileContents;
         } catch (err) {
             console.error('获取文件内容失败:', err);
@@ -168,68 +241,152 @@ const StudentReviewPage: React.FC = () => {
         }
     };
 
-    const handleSelectReview = (review: Review) => {
-        setSelectedReview(review);
+    const generateTypstSource = (review: Review, files: FileContent[]): string => {
+        if (!review) return '';
 
-        // 初始化文件内容状态
-        const contents: Record<string, string> = {};
-        review.files.forEach(file => {
-            contents[file.file_name] = file.file_content;
+        let source = `#import "@preview/zebraw:0.6.0": *\n\n`;
+        source += `#set page(margin: 1in)\n\n`;
+
+        source += `= ${review.homework_title}\n\n`;
+        source += `**评分:** ${review.grade}\n\n`;
+        source += `**总体评语:**\n${review.total_comment}\n\n`;
+
+        files.forEach((file) => {
+            source += `== ${file.file_name}\n\n`;
+            const fileComments = review.comments.filter(comment => comment.file === file.file_name);
+
+            source += `#zebraw(\n`;
+            if (fileComments.length > 0) {
+                source += `  highlight-lines: (\n`;
+
+                fileComments.forEach((comment) => {
+                    const escapedComment = comment.content
+                        .replace(/"/g, '\\"')
+                        .replace(/\n/g, '\\n');
+                    source += `    (${comment.line}, "${escapedComment}"),\n`;
+                });
+
+                source += `  ),\n`;
+            }
+
+            const codeContent = file.file_content
+                .replace(/\\/g, '\\\\')
+                .replace(/`/g, '\\`');
+
+            // 根据文件扩展名动态设置语言
+            const language = getLanguageByFileName(file.file_name);
+            source += `  \`\`\`${language}\n` + codeContent + '\n  ```\n)\n\n';
         });
-        setFileContents(contents);
 
-        if (review.files.length > 0) {
-            setActiveFile(review.files[0].file_name);
+        return source;
+    };
+
+    // 在新标签页打开 PDF
+    const openPdfInNewTab = async (review: Review) => {
+        if (!review) {
+            setError('未选择批改记录');
+            return;
+        }
+
+        if (!typstLoaded) {
+            setError('Typst 编译器正在加载中，请稍后重试');
+            return;
+        }
+
+        if (!window.$typst) {
+            setError('Typst 编译器未正确加载');
+            return;
+        }
+
+        setPdfLoading(review.id);
+        setError(null);
+
+        try {
+            console.log('开始获取文件内容...');
+
+            // 检查缓存中是否已有文件内容
+            let files: FileContent[];
+            if (fileCache[review.id]) {
+                console.log('使用缓存的文件内容');
+                files = fileCache[review.id];
+            } else {
+                console.log('下载文件内容...');
+                files = await fetchFileContents(review.storage_path);
+                // 缓存文件内容
+                setFileCache(prev => ({
+                    ...prev,
+                    [review.id]: files
+                }));
+            }
+
+            if (files.length === 0) {
+                throw new Error('未找到作业文件');
+            }
+
+            console.log('开始生成 Typst 源代码...');
+            const source = generateTypstSource(review, files);
+            console.log('Typst 源代码生成完成，开始编译...');
+
+            const pdfData = await window.$typst.pdf({ mainContent: source });
+            console.log('PDF 编译完成，大小:', pdfData.length);
+
+            // 创建 Blob 并生成 URL
+            const pdfFile = new Blob([pdfData], { type: 'application/pdf' });
+            const pdfUrl = URL.createObjectURL(pdfFile);
+
+            // 在新标签页打开 PDF
+            const newWindow = window.open(pdfUrl, '_blank');
+
+            if (!newWindow) {
+                setError('请允许弹出窗口以查看 PDF');
+                URL.revokeObjectURL(pdfUrl);
+                return;
+            }
+
+            // 清理 URL 对象（延迟清理以确保新标签页能加载）
+            setTimeout(() => {
+                URL.revokeObjectURL(pdfUrl);
+            }, 5000);
+
+        } catch (err: any) {
+            console.error('生成 PDF 失败:', err);
+            if (err.message && err.message.includes('diagnostic')) {
+                setError('编译错误: ' + JSON.stringify(err.message));
+            } else {
+                setError('生成 PDF 失败: ' + (err as Error).message);
+            }
+        } finally {
+            setPdfLoading(null);
         }
     };
 
-    const getFileComments = (fileName: string) => {
-        if (!selectedReview) return [];
-        return selectedReview.comments.filter(comment => comment.file === fileName);
-    };
+    // 渲染编译器状态提示
+    const renderCompilerStatus = () => {
+        if (typstError) {
+            return (
+                <Alert icon={<IconAlertCircle size={16} />} title="编译器加载失败" color="red" mb="md">
+                    {typstError}
+                    <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => window.location.reload()}
+                        ml="sm"
+                    >
+                        重试
+                    </Button>
+                </Alert>
+            );
+        }
 
-    const renderCodeWithComments = (fileName: string, content: string) => {
-        const fileComments = getFileComments(fileName);
+        if (!typstLoaded) {
+            return (
+                <Alert icon={<IconAlertCircle size={16} />} title="编译器加载中" color="blue" mb="md">
+                    Typst 编译器正在加载，请稍等片刻...
+                </Alert>
+            );
+        }
 
-        return (
-            <div style={{ position: 'relative' }}>
-                <CodeEditor
-                    value={content}
-                    onChange={() => { }} // 只读模式
-                    language="cpp" // 可以根据文件扩展名动态设置
-                    readOnly={true}
-                    height="500px"
-                />
-
-                {/* 评论侧边栏 */}
-                <div style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    width: '300px',
-                    height: '100%',
-                    backgroundColor: 'var(--mantine-color-gray-0)',
-                    borderLeft: '1px solid var(--mantine-color-gray-3)',
-                    overflowY: 'auto',
-                    padding: '10px'
-                }}>
-                    <Text size="sm" fw={500} mb="md">评论</Text>
-
-                    {fileComments.length === 0 ? (
-                        <Text size="sm" c="dimmed">暂无评论</Text>
-                    ) : (
-                        <Stack gap="xs">
-                            {fileComments.map((comment, index) => (
-                                <Card key={index} p="xs" withBorder>
-                                    <Text size="xs" c="dimmed">第 {comment.line} 行</Text>
-                                    <Text size="sm">{comment.content}</Text>
-                                </Card>
-                            ))}
-                        </Stack>
-                    )}
-                </div>
-            </div>
-        );
+        return null;
     };
 
     if (loading) {
@@ -237,36 +394,6 @@ const StudentReviewPage: React.FC = () => {
             <Container size="lg" py="xl">
                 <Paper p="xl" withBorder style={{ position: 'relative', height: '200px' }}>
                     <LoadingOverlay visible={loading} />
-                </Paper>
-            </Container>
-        );
-    }
-
-    if (error) {
-        return (
-            <Container size="lg" py="xl">
-                <Paper p="xl" withBorder>
-                    <Stack gap="md" align="center">
-                        <Text color="red" style={{ textAlign: 'center', fontWeight: 'bold' }} size="xl">
-                            加载失败
-                        </Text>
-                        <Text style={{ textAlign: 'center' }} color="dimmed">
-                            {error}
-                        </Text>
-                        <Group>
-                            <Button
-                                variant="outline"
-                                onClick={() => navigate(-1)}
-                            >
-                                返回
-                            </Button>
-                            <Button
-                                onClick={fetchReviews}
-                            >
-                                重试
-                            </Button>
-                        </Group>
-                    </Stack>
                 </Paper>
             </Container>
         );
@@ -290,175 +417,85 @@ const StudentReviewPage: React.FC = () => {
                             <Text c="dimmed">查看教师批改反馈</Text>
                         </div>
                     </Group>
-                    <Text color="dimmed">
+                    <Text c="dimmed">
                         共 {reviews.length} 份批改
                     </Text>
                 </Flex>
 
+                {/* 编译器状态提示 */}
+                {renderCompilerStatus()}
+
                 {error && (
-                    <Paper p="md" withBorder bg="red.0">
-                        <Text color="red">{error}</Text>
-                    </Paper>
+                    <Alert icon={<IconAlertCircle size={16} />} title="错误" color="red">
+                        {error}
+                    </Alert>
                 )}
 
-                <Grid>
-                    {/* 左侧：批改列表 */}
-                    <Grid.Col span={{ base: 12, lg: selectedReview ? 4 : 12 }}>
-                        <Paper withBorder pos="relative">
-                            <LoadingOverlay visible={loading} />
-                            <Table>
-                                <Table.Thead>
-                                    <Table.Tr>
-                                        <Table.Th>作业名称</Table.Th>
-                                        <Table.Th>批改时间</Table.Th>
-                                        <Table.Th>评分</Table.Th>
-                                        <Table.Th>操作</Table.Th>
-                                    </Table.Tr>
-                                </Table.Thead>
-                                <Table.Tbody>
-                                    {reviews.length === 0 ? (
-                                        <Table.Tr>
-                                            <Table.Td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>
-                                                <Text c="dimmed">
-                                                    {loading ? '加载中...' : '暂无批改记录'}
-                                                </Text>
-                                            </Table.Td>
-                                        </Table.Tr>
-                                    ) : (
-                                        reviews.map((review) => (
-                                            <Table.Tr
-                                                key={review.id}
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    backgroundColor: selectedReview?.id === review.id ? 'var(--mantine-color-blue-light)' : 'transparent'
-                                                }}
-                                                onClick={() => handleSelectReview(review)}
-                                            >
-                                                <Table.Td>
-                                                    <Text fw={500}>{review.homework_title}</Text>
-                                                </Table.Td>
-                                                <Table.Td>
-                                                    <Text size="sm">
-                                                        {new Date(review.graded_at).toLocaleString('zh-CN')}
-                                                    </Text>
-                                                </Table.Td>
-                                                <Table.Td>
-                                                    <Badge
-                                                        color="blue"
-                                                        variant="light"
-                                                    >
-                                                        {review.grade}
-                                                    </Badge>
-                                                </Table.Td>
-                                                <Table.Td>
-                                                    <Button
-                                                        variant="light"
-                                                        size="xs"
-                                                        onClick={() => handleSelectReview(review)}
-                                                    >
-                                                        查看详情
-                                                    </Button>
-                                                </Table.Td>
-                                            </Table.Tr>
-                                        ))
-                                    )}
-                                </Table.Tbody>
-                            </Table>
-                        </Paper>
-                    </Grid.Col>
-
-                    {/* 右侧：批改详情 */}
-                    {selectedReview && (
-                        <Grid.Col span={{ base: 12, lg: 8 }}>
-                            <Stack gap="md">
-                                {/* 批改概览 */}
-                                <Paper p="md" withBorder>
-                                    <Flex justify="space-between" align="center" mb="md">
-                                        <Title order={3}>{selectedReview.homework_title}</Title>
-                                        <Badge size="lg" color="blue">
-                                            评分: {selectedReview.grade}
-                                        </Badge>
-                                    </Flex>
-
-                                    <Text fw={500} mb="xs">总体评语:</Text>
-                                    <Textarea
-                                        value={selectedReview.total_comment}
-                                        readOnly
-                                        autosize
-                                        minRows={3}
-                                        styles={{
-                                            input: {
-                                                backgroundColor: 'var(--mantine-color-gray-0)',
-                                                border: '1px solid var(--mantine-color-gray-3)'
-                                            }
+                <Paper withBorder pos="relative">
+                    <LoadingOverlay visible={loading} />
+                    <Table>
+                        <Table.Thead>
+                            <Table.Tr>
+                                <Table.Th>作业名称</Table.Th>
+                                <Table.Th>批改时间</Table.Th>
+                                <Table.Th>评分</Table.Th>
+                                <Table.Th>操作</Table.Th>
+                            </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            {reviews.length === 0 ? (
+                                <Table.Tr>
+                                    <Table.Td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>
+                                        <Text c="dimmed">
+                                            {loading ? '加载中...' : '暂无批改记录'}
+                                        </Text>
+                                    </Table.Td>
+                                </Table.Tr>
+                            ) : (
+                                reviews.map((review) => (
+                                    <Table.Tr
+                                        key={review.id}
+                                        style={{
+                                            cursor: 'pointer',
+                                            backgroundColor: selectedReview?.id === review.id ? 'var(--mantine-color-blue-light)' : 'transparent'
                                         }}
-                                    />
-
-                                    <Group mt="md" gap="xs">
-                                        <IconFileCode size={16} />
-                                        <Text size="sm" c="dimmed">
-                                            共 {selectedReview.files.length} 个文件，{selectedReview.comments.length} 条评论
-                                        </Text>
-                                    </Group>
-                                </Paper>
-
-                                {/* 代码和评论 */}
-                                {selectedReview.files.length > 0 ? (
-                                    <Paper p="md" withBorder>
-                                        <Title order={4} mb="md">代码批改详情</Title>
-
-                                        <CodeEditorTabs
-                                            files={selectedReview.files.map(file => ({
-                                                ...file,
-                                                id: file.file_name,
-                                                isCustom: false
-                                            }))}
-                                            fileContents={fileContents}
-                                            activeFile={activeFile}
-                                            language="cpp" // 可以根据实际情况调整
-                                            onFileChange={() => { }} // 只读模式
-                                            onActiveFileChange={setActiveFile}
-                                            onAddFile={() => { }} // 不需要添加文件
-                                            onDeleteFile={() => { }} // 不需要删除文件
-                                            onFileNameEdit={() => { }} // 不需要重命名文件
-                                        />
-
-                                        {/* 当前文件的评论 */}
-                                        {activeFile && (
-                                            <Paper p="md" withBorder mt="md">
-                                                <Text fw={500} mb="sm">
-                                                    文件 {activeFile} 的评论
-                                                </Text>
-                                                <Stack gap="xs">
-                                                    {getFileComments(activeFile).length === 0 ? (
-                                                        <Text size="sm" c="dimmed">该文件暂无评论</Text>
-                                                    ) : (
-                                                        getFileComments(activeFile).map((comment, index) => (
-                                                            <Card key={index} p="sm" withBorder>
-                                                                <Group justify="apart" mb="xs">
-                                                                    <Badge size="sm" variant="light">
-                                                                        第 {comment.line} 行
-                                                                    </Badge>
-                                                                </Group>
-                                                                <Text size="sm">{comment.content}</Text>
-                                                            </Card>
-                                                        ))
-                                                    )}
-                                                </Stack>
-                                            </Paper>
-                                        )}
-                                    </Paper>
-                                ) : (
-                                    <Paper p="xl" withBorder>
-                                        <Text c="dimmed" ta="center">
-                                            暂无代码文件
-                                        </Text>
-                                    </Paper>
-                                )}
-                            </Stack>
-                        </Grid.Col>
-                    )}
-                </Grid>
+                                    >
+                                        <Table.Td>
+                                            <Text fw={500}>{review.homework_title}</Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Text size="sm">
+                                                {new Date(review.graded_at).toLocaleString('zh-CN')}
+                                            </Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Badge
+                                                color="blue"
+                                                variant="light"
+                                            >
+                                                {review.grade}
+                                            </Badge>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Button
+                                                variant="light"
+                                                size="xs"
+                                                loading={pdfLoading === review.id}
+                                                disabled={!typstLoaded || !!typstError}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openPdfInNewTab(review);
+                                                }}
+                                            >
+                                                {!typstLoaded ? '加载中...' : '查看详情'}
+                                            </Button>
+                                        </Table.Td>
+                                    </Table.Tr>
+                                ))
+                            )}
+                        </Table.Tbody>
+                    </Table>
+                </Paper>
             </Stack>
         </Container>
     );

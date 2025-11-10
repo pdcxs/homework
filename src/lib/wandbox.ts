@@ -52,6 +52,33 @@ export const FILE_EXTENSIONS: Record<string, string> = {
     'lisp': '.lisp',
 };
 
+export const EXTENSION_MAP: Record<string, string> = {
+    'c': 'c',
+    'cc': 'cpp',
+    'h': 'cpp',
+    'hpp': 'cpp',
+    'cpp': 'cpp',
+    'java': 'java',
+    'py': 'python',
+    'cs': 'csharp',
+    'go': 'go',
+    'hs': 'haskell',
+    'lisp': 'lisp',
+    'js': 'javascript',
+    'ts': 'typescript',
+    'html': 'html',
+    'css': 'css',
+    'json': 'json',
+    'xml': 'xml',
+    'md': 'markdown',
+    'txt': 'text',
+    'rs': 'rust',
+    'php': 'php',
+    'rb': 'ruby',
+    'sh': 'bash',
+    'sql': 'sql'
+};
+
 export const getLatestCompiler = async (language: string): Promise<string> => {
     const response = await fetch('https://wandbox.org/api/list.json');
 
