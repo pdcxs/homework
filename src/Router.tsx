@@ -15,6 +15,7 @@ import HomeworkCreatePage from './pages/HomeworkCreate.page';
 import HomeworkSubmitPage from './pages/HomeworkSubmit.page';
 import GradingDetailPage from './pages/GradingDetail.page';
 import GradingCheckPage from './pages/GradingCheck.page';
+import StudentReviewPage from './pages/StudentReview.page';
 
 export function Router() {
   const { session, loading, userRole } = useAuth(); // 假设 useAuth 返回 userRole
@@ -52,6 +53,10 @@ export function Router() {
       path: '/edit/:id',
       element: session ? <DashboardLayout><HomeworkSubmitPage /></DashboardLayout> : <SignInPage />,
     },
+    {
+      path: '/reviews',
+      element: session ? <DashboardLayout><StudentReviewPage /></DashboardLayout> : <SignInPage />,
+    }
   ];
 
   const teacherRoutes = [

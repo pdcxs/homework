@@ -17,6 +17,7 @@ import {
     IconUser,
     IconBook,
     IconSchool,
+    IconFileCode,
 } from '@tabler/icons-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ColorSchemeToggle } from './ColorSchemeToggle';
@@ -58,6 +59,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         { icon: IconSchool, label: '课程管理', path: '/course-management' }
     ] : [
         { icon: IconEdit, label: '作业', path: '/tasks' },
+        { icon: IconFileCode, label: '查看批改', path: '/reviews' },
         { icon: IconUser, label: '用户信息', path: '/profile' },
     ];
 
