@@ -249,10 +249,6 @@ export default function HomeworkSubmitPage() {
         setRunResult(null);
 
         try {
-            console.log(fileContents)
-            console.log(form.values.stdin)
-            console.log(form.values.language)
-            console.log(form.values.compileOptions)
             const result = await runCode(
                 fileContents,
                 form.values.stdin,

@@ -11,7 +11,8 @@ import {
     Text,
     Center,
     Paper,
-    Flex
+    Flex,
+    Radio
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
@@ -25,6 +26,7 @@ interface ClassItem {
 
 interface FormValues {
     email: string;
+    role: 'student' | 'teacher';
     studentId: string;
     name: string;
     classId: string | null;
@@ -42,6 +44,7 @@ export default function SignUpPage() {
     const form = useForm<FormValues>({
         initialValues: {
             email: '',
+            role: 'student',
             studentId: '',
             name: '',
             classId: null,
@@ -55,10 +58,12 @@ export default function SignUpPage() {
                 if (!/^\S+@\S+$/.test(value)) return '邮箱格式不正确';
                 return null;
             },
-            studentId: (value) => {
-                if (!value) return '学号不能为空';
-                if (value.length < 3) return '学号长度至少3位';
-                if (!value.match(/[0-9]+$/)) return '学号只能包含数字';
+            studentId: (value, values) => {
+                if (values.role === 'student') {
+                    if (!value) return '学号不能为空';
+                    if (value.length < 3) return '学号长度至少3位';
+                    if (!value.match(/[0-9]+$/)) return '学号只能包含数字';
+                }
                 return null;
             },
             name: (value) => {
@@ -66,8 +71,8 @@ export default function SignUpPage() {
                 if (value.length < 2) return '姓名长度至少2位';
                 return null;
             },
-            classId: (value) => {
-                if (!value) return '请选择班级';
+            classId: (value, values) => {
+                if (values.role === 'student' && !value) return '请选择班级';
                 return null;
             },
             password: (value) => {
@@ -100,17 +105,24 @@ export default function SignUpPage() {
 
     const handleSignUp = async (values: FormValues) => {
         setLoading(true);
-        // console.log(values);
+
+        // 准备用户元数据
+        const userMetadata: any = {
+            name: values.name,
+            role: values.role,
+        };
+
+        // 如果是学生，添加学号和班级信息
+        if (values.role === 'student') {
+            userMetadata.student_id = values.studentId;
+            userMetadata.class_id = values.classId;
+        }
 
         const { error } = await supabaseClient.auth.signUp({
             email: values.email,
             password: values.password,
             options: {
-                data: {
-                    student_id: values.studentId,
-                    name: values.name,
-                    class_id: values.classId,
-                },
+                data: userMetadata,
             },
         });
 
@@ -127,6 +139,8 @@ export default function SignUpPage() {
         setModalOpened(false);
         navigate("/");
     };
+
+    const isStudent = form.values.role === 'student';
 
     return (
         <div style={{ paddingTop: "30px" }}>
@@ -169,20 +183,35 @@ export default function SignUpPage() {
                                     {...form.getInputProps('name')}
                                 />
 
-                                <TextInput
-                                    label="学号"
-                                    placeholder="请输入学号"
-                                    required
-                                    {...form.getInputProps('studentId')}
-                                />
+                                <Radio.Group
+                                    label="角色"
+                                    description="请选择您的身份"
+                                    {...form.getInputProps('role')}
+                                >
+                                    <Flex mt="lg" gap="xl" justify={"flex-start"}>
+                                        <Radio value="student" label="学生" />
+                                        <Radio value="teacher" label="教师" />
+                                    </Flex>
+                                </Radio.Group>
 
-                                <Select
-                                    label="班级"
-                                    placeholder="请选择班级"
-                                    data={classes.map((c) => ({ value: c.id.toString(), label: c.name }))}
-                                    required
-                                    {...form.getInputProps('classId')}
-                                />
+                                {isStudent && (
+                                    <>
+                                        <TextInput
+                                            label="学号"
+                                            placeholder="请输入学号"
+                                            required={isStudent}
+                                            {...form.getInputProps('studentId')}
+                                        />
+
+                                        <Select
+                                            label="班级"
+                                            placeholder="请选择班级"
+                                            data={classes.map((c) => ({ value: c.id.toString(), label: c.name }))}
+                                            required={isStudent}
+                                            {...form.getInputProps('classId')}
+                                        />
+                                    </>
+                                )}
 
                                 <Button
                                     type="submit"
