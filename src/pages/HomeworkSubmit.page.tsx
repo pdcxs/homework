@@ -345,7 +345,10 @@ export default function HomeworkSubmitPage() {
                 supabase,
                 homework.id,
                 user.id,
-                fileContents
+                fileContents,
+                hasTestCases ? "通过 " + runResult?.testResults?.filter((r) => r.passed).length.toString() + " 个测试" +
+                    "未通过 " + runResult?.testResults?.filter((r) => !r.passed).length.toString() + " 个测试"
+                    : runResult?.output
             );
 
             if (success) {

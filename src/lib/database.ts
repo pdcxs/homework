@@ -194,7 +194,8 @@ export const submitHomework = async (
     supabase: SupabaseClient,
     homeworkId: bigint,
     userId: string,
-    fileContents: Record<string, string>
+    fileContents: Record<string, string>,
+    result?: string,
 ): Promise<boolean> => {
     try {
         // 构建存储路径
@@ -247,6 +248,7 @@ export const submitHomework = async (
                 student_id: userId,
                 storage_path: storagePath,
                 submitted_at: new Date().toISOString(),
+                result: result,
             }, {
                 onConflict: 'homework_id,student_id'
             });
