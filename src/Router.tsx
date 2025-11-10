@@ -11,6 +11,8 @@ import HomeworkEditPage from './pages/HomeworkEdit.page';
 import HomeworkManagementPage from './pages/HomeworkManagement.page';
 import GradingPage from './pages/Grading.page';
 import CourseManagementPage from './pages/CourseManagement.page';
+import HomeworkCreatePage from './pages/HomeworkCreate.page';
+import HomeworkSubmitPage from './pages/HomeworkSubmit.page';
 
 export function Router() {
   const { session, loading, userRole } = useAuth(); // 假设 useAuth 返回 userRole
@@ -46,15 +48,35 @@ export function Router() {
     },
     {
       path: '/edit/:id',
-      element: session ? <DashboardLayout><HomeworkEditPage /></DashboardLayout> : <SignInPage />,
+      element: session ? <DashboardLayout><HomeworkSubmitPage /></DashboardLayout> : <SignInPage />,
     },
   ];
 
   const teacherRoutes = [
     {
       path: '/',
+      element: session ? <DashboardLayout><HomeworkManagementPage /></DashboardLayout> : <SignInPage />
+    },
+    {
+      path: '/homework-management',
+      element: session ? <DashboardLayout><HomeworkManagementPage /></DashboardLayout> : <SignInPage />
+    },
+    {
+      path: '/homework-create',
       element: session ?
-        <DashboardLayout><HomeworkManagementPage /></DashboardLayout> :
+        <DashboardLayout><HomeworkCreatePage /></DashboardLayout> :
+        <Navigate to="/" replace />,
+    },
+    {
+      path: '/homework-edit/:id',
+      element: session ?
+        <DashboardLayout><HomeworkEditPage /></DashboardLayout> :
+        <Navigate to="/" replace />,
+    },
+    {
+      path: '/homework-preview/:id',
+      element: session ?
+        <DashboardLayout><HomeworkSubmitPage /></DashboardLayout> :
         <Navigate to="/" replace />,
     },
     {

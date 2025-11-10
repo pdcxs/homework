@@ -43,7 +43,7 @@ export function UserProfilePage() {
   const [opened, { open, close }] = useDisclosure(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [initialValues, setInitialValues] = useState<FormValues | null>(null);
-  const { supabaseClient: supabase } = useAuth();
+  const { supabaseClient: supabase, session } = useAuth();
 
   const form = useForm<FormValues>({
     initialValues: {
@@ -74,7 +74,7 @@ export function UserProfilePage() {
   const { data: profile, isLoading: loading } = useQuery<UserProfile | null>({
     queryKey: ['userProfile'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('*,classes!inner(*)').single();
+      const { data, error } = await supabase.from('profiles').select('*,classes!inner(*)').eq('id', session?.user.id).single();
       if (error) {
         console.error('Error fetching profile:', error);
         return null;

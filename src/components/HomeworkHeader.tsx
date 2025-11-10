@@ -12,6 +12,8 @@ interface HomeworkHeaderProps {
     onResetToPreviousSubmission: () => void;
     hasPreviousSubmission: boolean;
     isLanguageEditable: boolean;
+    previewMode?: boolean;
+    onBack?: () => void;
 }
 
 export function HomeworkHeader({
@@ -21,7 +23,9 @@ export function HomeworkHeader({
     onResetToOriginal,
     onResetToPreviousSubmission,
     hasPreviousSubmission,
-    isLanguageEditable
+    isLanguageEditable,
+    previewMode,
+    onBack
 }: HomeworkHeaderProps) {
     const navigate = useNavigate();
 
@@ -30,7 +34,7 @@ export function HomeworkHeader({
             <Button
                 variant="subtle"
                 leftSection={<IconArrowLeft size={16} />}
-                onClick={() => navigate('/tasks')}
+                onClick={previewMode ? onBack : () => navigate('/tasks')}
             >
                 返回
             </Button>

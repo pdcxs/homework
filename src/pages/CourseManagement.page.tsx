@@ -23,6 +23,7 @@ import { useForm } from '@mantine/form';
 import { IconEdit, IconTrash, IconPlus, IconSchool, IconUsers } from '@tabler/icons-react';
 import { useAuth } from '../App';
 import LoaderComponent from '@/components/LoaderComponent';
+import { LANGUAGE_OPTIONS } from '@/lib/wandbox';
 
 // 类型定义
 interface Class {
@@ -120,16 +121,22 @@ const CourseManagementPage: React.FC = () => {
         setCourseModalOpened(true);
     };
 
-    // 修改 fetchCourses 函数，使用 RPC 调用
     const fetchCourses = async () => {
         try {
             setLoading(true);
             console.log('开始获取课程数据...');
-            // 使用 RPC 调用绕过 RLS 策略
-            const { data, error } = await supabaseClient.rpc('get_teacher_courses');
+
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) throw new Error('用户未登录');
+
+            const { data, error } = await supabaseClient
+                .from('courses')
+                .select('*')
+                .eq('teacher', user.id)
+                .order('created_at', { ascending: false });
 
             if (error) {
-                console.error('RPC调用失败:', error);
+                console.error('获取课程失败:', error);
                 throw error;
             }
 
@@ -143,15 +150,17 @@ const CourseManagementPage: React.FC = () => {
         }
     };
 
-    // 修改 fetchClasses 函数，使用 RPC 调用
     const fetchClasses = async () => {
         try {
             console.log('开始获取班级数据...');
-            // 使用 RPC 调用绕过 RLS 策略
-            const { data, error } = await supabaseClient.rpc('get_all_classes');
+
+            const { data, error } = await supabaseClient
+                .from('classes')
+                .select('*')
+                .order('name');
 
             if (error) {
-                console.error('RPC调用失败:', error);
+                console.error('获取班级失败:', error);
                 throw error;
             }
 
@@ -163,7 +172,6 @@ const CourseManagementPage: React.FC = () => {
         }
     };
 
-    // 修改 handleCourseSubmit 函数，添加 RPC 调用选项
     const handleCourseSubmit = async (values: CourseFormValues) => {
         try {
             setError(null);
@@ -177,14 +185,17 @@ const CourseManagementPage: React.FC = () => {
             }
 
             if (editingCourse) {
-                // 更新现有课程 - 使用 RPC 调用
-                const { error } = await supabaseClient.rpc('update_course', {
-                    course_id: editingCourse.id,
-                    course_name: values.name,
-                    course_language: values.language,
-                    course_class_ids: values.class_ids,
-                    course_active: values.active
-                });
+                // 更新现有课程
+                const { error } = await supabaseClient
+                    .from('courses')
+                    .update({
+                        name: values.name,
+                        language: values.language,
+                        class_ids: values.class_ids,
+                        active: values.active
+                    })
+                    .eq('id', editingCourse.id)
+                    .eq('teacher', user.data.user.id);
 
                 if (error) {
                     console.error('更新课程错误:', error);
@@ -192,13 +203,16 @@ const CourseManagementPage: React.FC = () => {
                 }
                 setSuccess('课程更新成功');
             } else {
-                // 创建新课程 - 使用 RPC 调用
-                const { error } = await supabaseClient.rpc('create_course', {
-                    course_name: values.name,
-                    course_language: values.language,
-                    course_class_ids: values.class_ids,
-                    course_active: values.active
-                });
+                // 创建新课程
+                const { error } = await supabaseClient
+                    .from('courses')
+                    .insert({
+                        name: values.name,
+                        language: values.language,
+                        class_ids: values.class_ids,
+                        active: values.active,
+                        teacher: user.data.user.id
+                    });
 
                 if (error) {
                     console.error('创建课程错误:', error);
@@ -216,15 +230,16 @@ const CourseManagementPage: React.FC = () => {
         }
     };
 
-    // 修改 handleClassSubmit 函数，使用 RPC 调用
     const handleClassSubmit = async (values: ClassFormValues) => {
         try {
             setError(null);
-            // 使用 RPC 调用创建班级
-            const { error } = await supabaseClient.rpc('create_class', {
-                class_name: values.name,
-                class_active: values.active
-            });
+
+            const { error } = await supabaseClient
+                .from('classes')
+                .insert({
+                    name: values.name,
+                    active: values.active
+                });
 
             if (error) throw error;
 
@@ -238,16 +253,21 @@ const CourseManagementPage: React.FC = () => {
         }
     };
 
-    // 修改删除课程的函数，使用 RPC 调用
+    // 删除课程 - 直接删除
     const handleDeleteCourse = async () => {
         if (!deletingCourse) return;
 
         try {
             setError(null);
-            // 使用 RPC 调用删除课程
-            const { error } = await supabaseClient.rpc('delete_course', {
-                course_id: deletingCourse.id
-            });
+
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) throw new Error('用户未登录');
+
+            const { error } = await supabaseClient
+                .from('courses')
+                .delete()
+                .eq('id', deletingCourse.id)
+                .eq('teacher', user.id);
 
             if (error) throw error;
 
@@ -434,12 +454,7 @@ const CourseManagementPage: React.FC = () => {
                         <Select
                             label="编程语言"
                             placeholder="选择编程语言"
-                            data={[
-                                { value: 'cpp', label: 'C++' },
-                                { value: 'python', label: 'Python' },
-                                { value: 'java', label: 'Java' },
-                                { value: 'javascript', label: 'JavaScript' },
-                            ]}
+                            data={[...LANGUAGE_OPTIONS, { value: "*", label: "无限制" }]}
                             required
                             {...courseForm.getInputProps('language')}
                         />

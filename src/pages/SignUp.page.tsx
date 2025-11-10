@@ -100,7 +100,7 @@ export default function SignUpPage() {
 
     const handleSignUp = async (values: FormValues) => {
         setLoading(true);
-        console.log(values);
+        // console.log(values);
 
         const { error } = await supabaseClient.auth.signUp({
             email: values.email,

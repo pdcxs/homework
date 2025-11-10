@@ -5,6 +5,7 @@ import { theme } from './theme';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createClient, Session } from '@supabase/supabase-js';
+import '@mantine/dates/styles.css';
 
 const queryClient = new QueryClient();
 
@@ -35,15 +36,17 @@ function GlobalContextProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const { data, error } = await supabase
-        .rpc('get_user_role', { user_id: userId });
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
 
       if (error) {
-        console.error('RPC调用失败:', error);
+        console.error('查询用户角色失败:', error);
         throw error;
       }
 
-      console.log('获取到的用户角色:', data);
-      setUserRole(data);
+      setUserRole(data?.role as 'student' | 'teacher' | null);
     } catch (error) {
       console.error('获取用户角色失败:', error);
       setUserRole(null);

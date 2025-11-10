@@ -16,13 +16,14 @@ import { RunResult } from '@/lib/wandbox';
 interface RunResultPanelProps {
     runResult: RunResult | null;
     running: boolean;
-    testing: boolean; // 新增测试状态
+    testing: boolean;
     submitting: boolean;
     hasPreviousSubmission: boolean;
-    hasTestCases: boolean; // 新增：是否有测试用例
+    hasTestCases: boolean;
     onRunCode: () => void;
-    onTestCode: () => void; // 新增：测试回调
-    onSubmit: () => void;
+    onTestCode: () => void;
+    onSubmit?: () => void;
+    previewMode?: boolean;
 }
 
 export function RunResultPanel({
@@ -34,7 +35,8 @@ export function RunResultPanel({
     hasTestCases,
     onRunCode,
     onTestCode,
-    onSubmit
+    onSubmit,
+    previewMode
 }: RunResultPanelProps) {
     return (
         <Paper p="md">
@@ -131,14 +133,16 @@ export function RunResultPanel({
                     </Button>
 
                     {/* 提交按钮 */}
-                    <Button
-                        leftSection={<IconSend size={16} />}
-                        onClick={onSubmit}
-                        loading={submitting}
-                        disabled={running || testing}
-                    >
-                        {hasPreviousSubmission ? '更新提交' : '提交作业'}
-                    </Button>
+                    {onSubmit && !previewMode && (
+                        <Button
+                            leftSection={<IconSend size={16} />}
+                            onClick={onSubmit}
+                            loading={submitting}
+                            disabled={running || testing}
+                        >
+                            {hasPreviousSubmission ? '更新提交' : '提交作业'}
+                        </Button>
+                    )}
                 </Group>
             </Stack>
         </Paper>

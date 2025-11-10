@@ -43,6 +43,7 @@ export const LANGUAGE_OPTIONS = [
 
 export const FILE_EXTENSIONS: Record<string, string> = {
     'cpp': '.cpp',
+    'c++': '.cpp',
     'java': '.java',
     'python': '.py',
     'csharp': '.cs',
@@ -55,27 +56,27 @@ async function getCompilersByLanguage(languages: string[]): Promise<CompilerInfo
     try {
         // 调用Wandbox API获取编译器列表
         const response = await fetch('https://wandbox.org/api/list.json');
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const allCompilers: any[] = await response.json();
-        
+
         // 过滤出指定语言的编译器
-        const filteredCompilers = allCompilers.filter(compiler => 
+        const filteredCompilers = allCompilers.filter(compiler =>
             languages.includes(compiler.language)
         );
-        
+
         // 转换为所需的接口格式
         const compilerInfo: CompilerInfo[] = filteredCompilers.map(compiler => ({
             name: compiler.name || '',
             version: compiler.version || '',
             language: compiler.language || ''
         }));
-        
+
         return compilerInfo;
-        
+
     } catch (error) {
         console.error('获取编译器信息失败:', error);
         throw error;
@@ -84,7 +85,7 @@ async function getCompilersByLanguage(languages: string[]): Promise<CompilerInfo
 
 export const getLatestCompiler = async (language: string): Promise<string> => {
     const response = await fetch('https://wandbox.org/api/list.json');
-    
+
     if (!response.ok) {
         throw new Error(`Failed to fetch compilers: ${response.status} ${response.statusText}`);
     }
@@ -207,9 +208,9 @@ export const runAllTests = async (
         const expectedOutput = outputs[i].trim();
 
         const result = await runSingleTest(compiler, fileContents, input, compileOptions);
-        
+
         const passed = result.success && result.output.trim() === expectedOutput;
-        
+
         if (!passed) {
             allTestsPassed = false;
         }
