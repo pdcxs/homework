@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { FileContent, Review } from './review';
 
 export interface HomeworkFile {
     id: bigint;
@@ -29,6 +30,7 @@ export interface UserProfile {
     name: string;
     student_id: string;
     class_id: number;
+    class_name: string,
 }
 
 // 获取作业详情
@@ -147,13 +149,11 @@ export const checkPreviousSubmission = async (
     }
 };
 
-// 加载已提交的文件
 export const loadSubmittedFiles = async (
     supabase: SupabaseClient,
     storagePath: string
 ): Promise<Record<string, string>> => {
     try {
-        // 列出存储路径下的所有文件
         const { data: filesList, error: listError } = await supabase.storage
             .from('homework')
             .list(storagePath);
@@ -189,7 +189,6 @@ export const loadSubmittedFiles = async (
     }
 };
 
-// 提交作业
 export const submitHomework = async (
     supabase: SupabaseClient,
     homeworkId: bigint,
@@ -199,10 +198,9 @@ export const submitHomework = async (
     result?: string,
 ): Promise<boolean> => {
     try {
-        // 构建存储路径
         const storagePath = `${userId}/${homeworkId}`;
 
-        // 先删除存储路径下的所有文件
+        // 删除存储路径下的所有文件
         const { data: existingFiles, error: listError } = await supabase.storage
             .from('homework')
             .list(storagePath);
@@ -265,4 +263,116 @@ export const submitHomework = async (
         console.error('提交作业失败:', error);
         return false;
     }
+};
+
+export const fetchStudentReviews = async (
+    supabaseClient: SupabaseClient,
+    studentId: string
+): Promise<Review[]> => {
+    try {
+        console.log('开始获取批改记录...');
+        const { data: checks, error: checksError } = await supabaseClient
+            .from('checks')
+            .select(`
+        id,
+        grade,
+        total_comment,
+        comments_contents,
+        comments_files,
+        comments_lines,
+        created_at,
+        answers!inner(
+          id,
+          submitted_at,
+          storage_path,
+          homeworks!inner(
+            id,
+            title,
+            courses!inner(
+              name
+            )
+          )
+        )
+      `)
+            .eq('answers.student_id', studentId)
+            .order('created_at', { ascending: false });
+
+        if (checksError) throw checksError;
+
+        console.log('获取到的批改记录数量:', checks?.length || 0);
+
+        const reviewData: Review[] = (checks || []).map((check: any) => ({
+            id: check.id,
+            homework_title: check.answers.homeworks.title,
+            course_name: check.answers.homeworks.courses.name,
+            graded_at: check.created_at,
+            grade: check.grade,
+            total_comment: check.total_comment || '',
+            comments: (check.comments_contents || []).map((content: string, index: number) => ({
+                content,
+                file: check.comments_files?.[index] || '',
+                line: check.comments_lines?.[index] || 0
+            })),
+            storage_path: check.answers.storage_path
+        }));
+
+        return reviewData;
+    } catch (err: any) {
+        console.error('获取批改记录失败:', err);
+        throw new Error(`获取批改记录失败: ${err.message}`);
+    }
+};
+
+/**
+ * 获取文件内容
+ */
+export const fetchFileContents = async (
+    supabaseClient: SupabaseClient,
+    storagePath: string
+): Promise<FileContent[]> => {
+    try {
+        console.log('获取文件内容，路径:', storagePath);
+        const { data: files, error: filesError } = await supabaseClient
+            .storage
+            .from('homework')
+            .list(storagePath);
+
+        if (filesError) {
+            console.error('获取文件列表失败:', filesError);
+            return [];
+        }
+
+        console.log('找到的文件数量:', files?.length || 0);
+
+        const fileContents: FileContent[] = [];
+        for (const file of files || []) {
+            try {
+                const filePath = `${storagePath}/${file.name}`;
+                const { data: fileData, error: downloadError } = await supabaseClient
+                    .storage
+                    .from('homework')
+                    .download(filePath);
+                if (!downloadError && fileData) {
+                    const text = await fileData.text();
+                    fileContents.push({
+                        file_name: file.name,
+                        file_content: text,
+                        editable: false
+                    });
+                    console.log(`成功读取文件: ${file.name}`);
+                }
+            } catch (fileErr) {
+                console.error(`读取文件 ${file.name} 失败:`, fileErr);
+            }
+        }
+        return fileContents;
+    } catch (err) {
+        console.error('获取文件内容失败:', err);
+        return [];
+    }
+};
+
+export const getUniqueCourseNames = (reviews: Review[]): string[] => {
+    const courseNames = reviews.map(review => review.course_name);
+    return [...new Set(courseNames)].filter(Boolean);
 };

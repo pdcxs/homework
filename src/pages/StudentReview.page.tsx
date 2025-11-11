@@ -16,27 +16,19 @@ import {
 } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-import { getLanguageByFileName } from '@/lib/wandbox';
 import { FileContent, Review } from '@/lib/review';
-
-// 声明全局 typst 类型
-declare global {
-    interface Window {
-        $typst: any;
-        TypstSnippet?: any;
-        __typstInitialized?: boolean;
-    }
-}
+import { fetchStudentReviews, fetchFileContents, getUniqueCourseNames } from '@/lib/database';
+import { initializeTypst, loadTypstScript, generateTypstSource, generatePdf, openPdfInNewTab } from '@/lib/typst';
 
 const StudentReviewPage: React.FC = () => {
-    const { supabaseClient, session } = useAuth();
+    const { supabaseClient: supabase, session } = useAuth();
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pdfLoading, setPdfLoading] = useState<number | null>(null);
     const [typstLoaded, setTypstLoaded] = useState(false);
     const [typstError, setTypstError] = useState<string | null>(null);
-    const [selectedCourseName, setSelectedCourseName] = useState<string>("所有课程")
+    const [selectedCourseName, setSelectedCourseName] = useState<string>("所有课程");
     const [filteredReviews, setFilteredReviews] = useState<Review[]>([]);
     const [courseNames, setCourseNames] = useState<string[]>([]);
 
@@ -45,87 +37,68 @@ const StudentReviewPage: React.FC = () => {
     const scriptRef = useRef<HTMLScriptElement | null>(null);
     const isMountedRef = useRef(true);
 
+    // 清理函数
     useEffect(() => {
         return () => {
             isMountedRef.current = false;
         };
     }, []);
 
+    // 筛选 reviews
     useEffect(() => {
         if (selectedCourseName === "所有课程") {
             setFilteredReviews(reviews);
         } else {
-            setFilteredReviews(reviews.filter((r) => r.course_name === selectedCourseName))
+            setFilteredReviews(reviews.filter((r) => r.course_name === selectedCourseName));
         }
-    }, [selectedCourseName, reviews])
+    }, [selectedCourseName, reviews]);
 
+    // 更新课程名称列表
     useEffect(() => {
-        setCourseNames(["所有课程", ...new Set(reviews.map((r) => r.course_name))]);
-    }, [reviews])
+        setCourseNames(["所有课程", ...getUniqueCourseNames(reviews)]);
+    }, [reviews]);
 
+    // 初始化 Typst
     useEffect(() => {
-        if (scriptRef.current || window.__typstInitialized) {
-            if (window.__typstInitialized) {
-                setTypstLoaded(true);
+        const initTypst = async () => {
+            if (scriptRef.current || window.__typstInitialized) {
+                if (window.__typstInitialized) {
+                    setTypstLoaded(true);
+                }
+                return;
             }
-            return;
-        }
 
-        const initializeTypst = async () => {
-            window.$typst.setCompilerInitOptions?.({
-                getModule: () =>
-                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-            });
-
-            window.$typst.setRendererInitOptions?.({
-                getModule: () =>
-                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-            });
-
-            const registry = await window.TypstSnippet.fetchPackageRegistry();
-            window.$typst?.use?.(registry);
-            console.log('Package registry configured successfully');
-
-            window.$typst?.use?.(
-                window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
-            );
-            console.log('Font assets preloaded');
-
-            window.$typst.__initialized = true;
-            window.__typstInitialized = true;
-
-            if (isMountedRef.current) {
-                setTypstLoaded(true);
-                setTypstError(null);
-            }
-            console.log('Typst 初始化成功');
-        }
-
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = 'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst.ts/dist/esm/contrib/all-in-one-lite.bundle.js';
-        script.id = 'typst';
-        script.crossOrigin = 'anonymous';
-
-        script.onload = () => {
-            setTimeout(() => {
-                initializeTypst();
-            }, 100);
-        };
-
-        script.onerror = () => {
-            console.error('加载 Typst 脚本失败');
-            if (isMountedRef.current) {
+            const scriptLoaded = await loadTypstScript();
+            if (!scriptLoaded) {
                 setTypstError('加载 Typst 编译器失败，请检查网络连接');
+                return;
+            }
+
+            const initialized = await initializeTypst({
+                onSuccess: () => {
+                    if (isMountedRef.current) {
+                        setTypstLoaded(true);
+                        setTypstError(null);
+                    }
+                },
+                onError: (errorMsg) => {
+                    if (isMountedRef.current) {
+                        setTypstError(errorMsg);
+                    }
+                }
+            });
+
+            if (initialized && isMountedRef.current) {
+                setTypstLoaded(true);
             }
         };
 
-        document.head.appendChild(script);
-        scriptRef.current = script;
+        initTypst();
     }, []);
 
+    // 获取批改记录
     const fetchReviews = useCallback(async () => {
-        if (fetchedReviewsRef.current) {
+        if (fetchedReviewsRef.current || !session) {
             return;
         }
 
@@ -135,55 +108,7 @@ const StudentReviewPage: React.FC = () => {
             setLoading(true);
             setError(null);
 
-            if (!session) {
-                throw new Error('用户未登录');
-            }
-
-            console.log('开始获取批改记录...');
-            const { data: checks, error: checksError } = await supabaseClient
-                .from('checks')
-                .select(`
-                id,
-                grade,
-                total_comment,
-                comments_contents,
-                comments_files,
-                comments_lines,
-                created_at,
-                answers!inner(
-                    id,
-                    submitted_at,
-                    storage_path,
-                    homeworks!inner(
-                        id,
-                        title,
-                        courses!inner(
-                            name
-                        )
-                    )
-                )
-            `)
-                .eq('answers.student_id', session.user.id)
-                .order('created_at', { ascending: false });
-
-            if (checksError) throw checksError;
-
-            console.log('获取到的批改记录数量:', checks?.length || 0);
-
-            const reviewData: Review[] = (checks || []).map((check: any) => ({
-                id: check.id,
-                homework_title: check.answers.homeworks.title,
-                course_name: check.answers.homeworks.courses.name,
-                graded_at: check.created_at,
-                grade: check.grade,
-                total_comment: check.total_comment || '',
-                comments: (check.comments_contents || []).map((content: string, index: number) => ({
-                    content,
-                    file: check.comments_files?.[index] || '',
-                    line: check.comments_lines?.[index] || 0
-                })),
-                storage_path: check.answers.storage_path
-            }));
+            const reviewData = await fetchStudentReviews(supabase, session.user.id);
 
             if (isMountedRef.current) {
                 setReviews(reviewData);
@@ -193,14 +118,14 @@ const StudentReviewPage: React.FC = () => {
         } catch (err: any) {
             console.error('获取批改记录失败:', err);
             if (isMountedRef.current) {
-                setError(`获取批改记录失败: ${err.message}`);
+                setError(err.message);
             }
         } finally {
             if (isMountedRef.current) {
                 setLoading(false);
             }
         }
-    }, [session, supabaseClient]);
+    }, [session]);
 
     useEffect(() => {
         if (session && !fetchedReviewsRef.current) {
@@ -208,96 +133,8 @@ const StudentReviewPage: React.FC = () => {
         }
     }, [session, fetchReviews]);
 
-    const fetchFileContents = async (storagePath: string): Promise<FileContent[]> => {
-        try {
-            console.log('获取文件内容，路径:', storagePath);
-            const { data: files, error: filesError } = await supabaseClient
-                .storage
-                .from('homework')
-                .list(storagePath);
-
-            if (filesError) {
-                console.error('获取文件列表失败:', filesError);
-                return [];
-            }
-
-            console.log('找到的文件数量:', files?.length || 0);
-
-            const fileContents: FileContent[] = [];
-            for (const file of files || []) {
-                try {
-                    const filePath = `${storagePath}/${file.name}`;
-                    const { data: fileData, error: downloadError } = await supabaseClient
-                        .storage
-                        .from('homework')
-                        .download(filePath);
-                    if (!downloadError && fileData) {
-                        const text = await fileData.text();
-                        fileContents.push({
-                            file_name: file.name,
-                            file_content: text,
-                            editable: false
-                        });
-                        console.log(`成功读取文件: ${file.name}`);
-                    }
-                } catch (fileErr) {
-                    console.error(`读取文件 ${file.name} 失败:`, fileErr);
-                }
-            }
-            return fileContents;
-        } catch (err) {
-            console.error('获取文件内容失败:', err);
-            return [];
-        }
-    };
-
-    const generateTypstSource = (review: Review, files: FileContent[]): string => {
-        if (!review) return '';
-
-        let source = `#import "@preview/zebraw:0.6.0": *\n\n`;
-        source += `#set page(margin: 1in)\n\n`;
-        source += `#show heading.where(level: 1): set text(size: 30pt)\n\n`
-        source += `#show heading.where(level: 2): set text(size: 20pt)\n\n`
-        source += `#set text(size: 15pt)\n\n`
-        source += `= ${review.homework_title}\n\n`;
-        source += `== 评分\n\n`
-        source += `#box(stroke: black, inset: 10pt)[*${review.grade}*]\n\n`;
-        source += `== 总体评语\n\n${review.total_comment}\n\n`;
-
-        files.forEach((file) => {
-            source += `== ${file.file_name}\n\n`;
-            const fileComments = review.comments.filter(comment => comment.file === file.file_name);
-
-            source += `#zebraw(\n`;
-            if (fileComments.length > 0) {
-                source += `  highlight-lines: (\n`;
-
-                fileComments.forEach((comment) => {
-                    const escapedComment = comment.content
-                        .replace(/"/g, '\\"')
-                        .replace(/\n/g, '\\n');
-                    source += `    (${comment.line}, "${escapedComment}"),\n`;
-                });
-
-                source += `  ),\n`;
-            }
-
-            const codeContent = file.file_content
-                .replace(/\\/g, '\\\\')
-                .replace(/`/g, '\\`');
-
-            // 根据文件扩展名动态设置语言
-            const language = getLanguageByFileName(file.file_name);
-            source += `  \`\`\`${language}\n` + codeContent + '\n  ```\n)\n\n';
-        });
-
-        console.log(source)
-
-        return source;
-    };
-
     // 在新标签页打开 PDF
-    const openPdfInNewTab = async (review: Review) => {
+    const handleOpenPdf = async (review: Review) => {
         if (!review) {
             setError('未选择批改记录');
             return;
@@ -308,19 +145,12 @@ const StudentReviewPage: React.FC = () => {
             return;
         }
 
-        if (!window.$typst) {
-            setError('Typst 编译器未正确加载');
-            return;
-        }
-
         if (pdfLoading === review.id) {
             return;
         }
 
         setPdfLoading(review.id);
         setError(null);
-
-        let pdfUrl: string | null = null;
 
         try {
             console.log('开始获取文件内容...');
@@ -331,7 +161,7 @@ const StudentReviewPage: React.FC = () => {
                 files = fileCacheRef.current[review.id];
             } else {
                 console.log('下载文件内容...');
-                files = await fetchFileContents(review.storage_path);
+                files = await fetchFileContents(supabase, review.storage_path);
                 fileCacheRef.current[review.id] = files;
             }
 
@@ -341,31 +171,14 @@ const StudentReviewPage: React.FC = () => {
 
             console.log('开始生成 Typst 源代码...');
             const source = generateTypstSource(review, files);
-            console.log('Typst 源代码生成完成，开始编译...');
 
-            const pdfData = await window.$typst.pdf({ mainContent: source });
-            console.log('PDF 编译完成，大小:', pdfData.length);
+            console.log('开始编译 PDF...');
+            const pdfData = await generatePdf(source);
 
-            const pdfFile = new Blob([pdfData], { type: 'application/pdf' });
-            pdfUrl = URL.createObjectURL(pdfFile);
-
-            const newWindow = window.open(pdfUrl, '_blank');
-
-            if (!newWindow) {
+            const opened = openPdfInNewTab(pdfData);
+            if (!opened) {
                 setError('请允许弹出窗口以查看 PDF');
-                return;
             }
-
-            // 简化的窗口关闭监听
-            const cleanup = () => {
-                if (pdfUrl) {
-                    URL.revokeObjectURL(pdfUrl);
-                }
-            };
-
-            // 5秒后自动清理，无论窗口是否关闭
-            setTimeout(cleanup, 5000);
-
         } catch (err: any) {
             console.error('生成 PDF 失败:', err);
             if (isMountedRef.current) {
@@ -426,7 +239,7 @@ const StudentReviewPage: React.FC = () => {
                         <Text c="dimmed">查看教师批改反馈</Text>
                     </div>
                     <Text c="dimmed">
-                        共 {reviews.length} 份批改
+                        共 {filteredReviews.length} 份批改
                     </Text>
                 </Flex>
 
@@ -440,8 +253,9 @@ const StudentReviewPage: React.FC = () => {
 
                 <Select
                     data={courseNames}
-                    defaultValue="所有课程"
+                    value={selectedCourseName}
                     onChange={(value) => setSelectedCourseName(value!)}
+                    placeholder="选择课程"
                 />
 
                 <Paper withBorder pos="relative">
@@ -459,7 +273,7 @@ const StudentReviewPage: React.FC = () => {
                         <Table.Tbody>
                             {filteredReviews.length === 0 ? (
                                 <Table.Tr>
-                                    <Table.Td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>
+                                    <Table.Td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
                                         <Text c="dimmed">
                                             {loading ? '加载中...' : '暂无批改记录'}
                                         </Text>
@@ -495,7 +309,7 @@ const StudentReviewPage: React.FC = () => {
                                                 disabled={!typstLoaded || !!typstError}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    openPdfInNewTab(review);
+                                                    handleOpenPdf(review);
                                                 }}
                                             >
                                                 {!typstLoaded ? '加载中...' : '查看详情'}

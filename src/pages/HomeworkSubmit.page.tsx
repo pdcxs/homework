@@ -21,12 +21,10 @@ import {
 } from '@/lib/wandbox';
 import {
     fetchHomeworkData,
-    fetchUserProfile,
     checkPreviousSubmission,
     loadSubmittedFiles,
     submitHomework as submitHomeworkToDB,
     HomeworkDetails,
-    UserProfile
 } from '@/lib/database';
 
 export default function HomeworkSubmitPage() {
@@ -41,7 +39,6 @@ export default function HomeworkSubmitPage() {
 
     const [homework, setHomework] = useState<HomeworkDetails | null>(null);
     const [files, setFiles] = useState<CustomFile[]>([]);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [running, setRunning] = useState(false);
@@ -88,10 +85,6 @@ export default function HomeworkSubmitPage() {
             if (!isPreview || !isTeacher) {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) throw new Error('用户未登录');
-
-                const profileData = await fetchUserProfile(supabase, user.id);
-                if (!profileData) throw new Error('用户信息不存在');
-                setProfile(profileData);
             }
 
             const homeworkData = await fetchHomeworkData(supabase, homeworkId!);
@@ -329,7 +322,7 @@ export default function HomeworkSubmitPage() {
     };
 
     const submitHomework = async () => {
-        if (!homework || !profile) return;
+        if (!homework) return;
 
         setSubmitting(true);
         closeNoRun();

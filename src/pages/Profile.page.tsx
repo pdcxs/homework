@@ -18,14 +18,7 @@ import { useState, useEffect } from 'react';
 import { useDisclosure } from '@mantine/hooks';
 import { IconCheck, IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-
-interface UserProfile {
-  id: string;
-  name: string;
-  student_id: string;
-  class_id: string;
-  class_name: string;
-}
+import { UserProfile } from '@/lib/database';
 
 interface ClassOption {
   value: string;
