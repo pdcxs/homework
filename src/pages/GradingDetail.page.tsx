@@ -25,7 +25,7 @@ import {
     generatePdf,
     openPdf
 } from '@/lib/typst';
-import { Review, FileContent } from '@/lib/review';
+import { Review } from '@/lib/review';
 
 interface Submission {
     id: number;
@@ -50,6 +50,7 @@ interface CheckRecord {
     answers: {
         homeworks: {
             title: string;
+            description: string;
             courses: {
                 name: string;
             };
@@ -169,6 +170,7 @@ const GradingDetailPage: React.FC = () => {
                     answers!inner(
                         homeworks!inner(
                             title,
+                            description,
                             courses!inner(
                                 name
                             )
@@ -226,6 +228,7 @@ const GradingDetailPage: React.FC = () => {
             const review: Review = {
                 id: checkRecord?.id || 0,
                 homework_title: checkRecord?.answers.homeworks.title || homeworkTitle,
+                description: checkRecord?.answers.homeworks.description || '',
                 course_name: checkRecord?.answers.homeworks.courses.name || '',
                 graded_at: checkRecord?.created_at || '',
                 grade: checkRecord?.grade || submission.grade || '未评分',

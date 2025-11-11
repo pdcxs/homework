@@ -33,7 +33,7 @@ import {
     generatePdf
 } from '@/lib/typst';
 import { fetchFileContents } from '@/lib/database';
-import { Review, FileContent } from '@/lib/review';
+import { Review } from '@/lib/review';
 
 // 类型定义
 interface Class {
@@ -81,6 +81,7 @@ interface CheckRecord {
         homeworks: {
             id: number;
             title: string;
+            description: string;
             courses: {
                 name: string;
             };
@@ -281,6 +282,7 @@ const CourseManagementPage: React.FC = () => {
                         homeworks!inner(
                             id,
                             title,
+                            description,
                             courses!inner(
                                 name
                             )
@@ -391,6 +393,7 @@ const CourseManagementPage: React.FC = () => {
                                 const review: Review = {
                                     id: checkRecord.id,
                                     homework_title: checkRecord.answers.homeworks.title,
+                                    description: checkRecord.answers.homeworks.description,
                                     course_name: checkRecord.answers.homeworks.courses.name,
                                     graded_at: checkRecord.created_at,
                                     grade: checkRecord.grade,

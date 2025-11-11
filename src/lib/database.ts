@@ -289,6 +289,7 @@ export const fetchStudentReviews = async (
           homeworks!inner(
             id,
             title,
+            description,
             courses!inner(
               name
             )
@@ -305,6 +306,7 @@ export const fetchStudentReviews = async (
         const reviewData: Review[] = (checks || []).map((check: any) => ({
             id: check.id,
             homework_title: check.answers.homeworks.title,
+            description: check.answers.homeworks.description,
             course_name: check.answers.homeworks.courses.name,
             graded_at: check.created_at,
             grade: check.grade,
@@ -324,9 +326,6 @@ export const fetchStudentReviews = async (
     }
 };
 
-/**
- * 获取文件内容
- */
 export const fetchFileContents = async (
     supabaseClient: SupabaseClient,
     storagePath: string
