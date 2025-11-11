@@ -20,10 +20,20 @@ import {
     Flex,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { IconEdit, IconTrash, IconPlus, IconSchool, IconUsers } from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconPlus, IconSchool, IconUsers, IconDownload } from '@tabler/icons-react';
 import { useAuth } from '../App';
 import LoaderComponent from '@/components/LoaderComponent';
 import { LANGUAGE_OPTIONS } from '@/lib/wandbox';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import {
+    initializeTypst,
+    loadTypstScript,
+    generateTypstSource,
+    generatePdf
+} from '@/lib/typst';
+import { fetchFileContents } from '@/lib/database';
+import { Review, FileContent } from '@/lib/review';
 
 // 类型定义
 interface Class {
@@ -55,6 +65,44 @@ interface ClassFormValues {
     active: boolean;
 }
 
+// 批改记录接口
+interface CheckRecord {
+    id: number;
+    grade: string;
+    total_comment: string;
+    comments_contents: string[];
+    comments_files: string[];
+    comments_lines: number[];
+    created_at: string;
+    answers: {
+        student_id: string;
+        submitted_at: string;
+        storage_path: string;
+        homeworks: {
+            id: number;
+            title: string;
+            courses: {
+                name: string;
+            };
+        };
+    };
+}
+
+// 学生信息接口
+interface StudentInfo {
+    id: string;
+    name: string;
+    student_id: string;
+    class_id: number;
+    class_name: string;
+}
+
+// 作业信息接口
+interface HomeworkInfo {
+    id: number;
+    title: string;
+}
+
 const CourseManagementPage: React.FC = () => {
     const { supabaseClient, userRole } = useAuth();
     const [courses, setCourses] = useState<Course[]>([]);
@@ -62,6 +110,7 @@ const CourseManagementPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [exportingCourse, setExportingCourse] = useState<number | null>(null);
 
     // 模态框状态
     const [courseModalOpened, setCourseModalOpened] = useState(false);
@@ -124,7 +173,6 @@ const CourseManagementPage: React.FC = () => {
     const fetchCourses = async () => {
         try {
             setLoading(true);
-            // console.log('开始获取课程数据...');
 
             const { data: { user } } = await supabaseClient.auth.getUser();
             if (!user) throw new Error('用户未登录');
@@ -140,7 +188,6 @@ const CourseManagementPage: React.FC = () => {
                 throw error;
             }
 
-            // console.log('获取到的课程数据:', data);
             setCourses(data || []);
         } catch (err: any) {
             console.error('获取课程失败:', err);
@@ -152,8 +199,6 @@ const CourseManagementPage: React.FC = () => {
 
     const fetchClasses = async () => {
         try {
-            // console.log('开始获取班级数据...');
-
             const { data, error } = await supabaseClient
                 .from('classes')
                 .select('*')
@@ -164,7 +209,6 @@ const CourseManagementPage: React.FC = () => {
                 throw error;
             }
 
-            // console.log('获取到的班级数据:', data);
             setClasses(data || []);
         } catch (err: any) {
             console.error('获取班级失败:', err);
@@ -172,13 +216,231 @@ const CourseManagementPage: React.FC = () => {
         }
     };
 
+    // 获取课程的所有学生信息
+    const fetchCourseStudents = async (courseId: number): Promise<StudentInfo[]> => {
+        try {
+            const { data: students, error } = await supabaseClient
+                .from('profiles')
+                .select('id, name, student_id, class_id, classes(name)')
+                .in('class_id', (await supabaseClient
+                    .from('courses')
+                    .select('class_ids')
+                    .eq('id', courseId)
+                    .single()
+                ).data?.class_ids || []);
+
+            if (error) throw error;
+
+            return (students || []).map(student => ({
+                id: student.id,
+                name: student.name,
+                student_id: student.student_id,
+                class_id: student.class_id,
+                class_name: (student.classes as any)?.name || '未知班级'
+            }));
+        } catch (err) {
+            console.error('获取学生信息失败:', err);
+            return [];
+        }
+    };
+
+    // 获取课程的所有作业
+    const fetchCourseHomeworks = async (courseId: number): Promise<HomeworkInfo[]> => {
+        try {
+            const { data: homeworks, error } = await supabaseClient
+                .from('homeworks')
+                .select('id, title')
+                .eq('course_id', courseId);
+
+            if (error) throw error;
+
+            return homeworks || [];
+        } catch (err) {
+            console.error('获取作业信息失败:', err);
+            return [];
+        }
+    };
+
+    // 获取学生的作业批改记录
+    const fetchStudentCheckRecords = async (studentId: string, homeworkId: number): Promise<CheckRecord | null> => {
+        try {
+            const { data: check, error } = await supabaseClient
+                .from('checks')
+                .select(`
+                    id,
+                    grade,
+                    total_comment,
+                    comments_contents,
+                    comments_files,
+                    comments_lines,
+                    created_at,
+                    answers!inner(
+                        student_id,
+                        submitted_at,
+                        storage_path,
+                        homeworks!inner(
+                            id,
+                            title,
+                            courses!inner(
+                                name
+                            )
+                        )
+                    )
+                `)
+                .eq('answers.student_id', studentId)
+                .eq('answers.homework_id', homeworkId)
+                .single();
+
+            if (error) return null;
+            return check as unknown as CheckRecord;
+        } catch (err) {
+            console.error('获取批改记录失败:', err);
+            return null;
+        }
+    };
+
+    // 生成CSV文件内容
+    const generateCSV = (students: StudentInfo[], homeworks: HomeworkInfo[], gradesData: any[]): string => {
+        const headers = ['姓名', '学号', '班级'];
+        homeworks.forEach(hw => headers.push(hw.title));
+
+        const csvRows = [headers.join(',')];
+
+        students.forEach(student => {
+            const row = [
+                student.name,
+                student.student_id,
+                student.class_name
+            ];
+
+            homeworks.forEach(hw => {
+                const grade = gradesData.find(g =>
+                    g.studentId === student.id && g.homeworkId === hw.id
+                )?.grade || '未批改';
+                row.push(grade);
+            });
+
+            csvRows.push(row.join(','));
+        });
+
+        return csvRows.join('\n');
+    };
+
+    // 导出课程数据
+    const handleExportCourse = async (course: Course) => {
+        try {
+            setExportingCourse(course.id);
+            setError(null);
+
+            // 确保 Typst 已初始化
+            if (!window.$typst || !window.$typst.__initialized) {
+                await loadTypstScript();
+                await initializeTypst({
+                    onError: (errorMsg) => {
+                        throw new Error(`Typst 初始化失败: ${errorMsg}`);
+                    }
+                });
+            }
+
+            // 获取课程相关数据
+            const students = await fetchCourseStudents(course.id);
+            const homeworks = await fetchCourseHomeworks(course.id);
+
+            if (students.length === 0 || homeworks.length === 0) {
+                setError('该课程没有学生或作业数据');
+                setExportingCourse(null);
+                return;
+            }
+
+            const zip = new JSZip();
+            const gradesData: any[] = [];
+
+            // 为每个班级创建文件夹
+            const classFolders: { [key: number]: any } = {};
+            students.forEach(student => {
+                if (!classFolders[student.class_id]) {
+                    classFolders[student.class_id] = zip.folder(student.class_name);
+                }
+            });
+
+            // 处理每个作业
+            for (const homework of homeworks) {
+                // 为每个作业在每个班级文件夹中创建子文件夹
+                Object.keys(classFolders).forEach(classId => {
+                    const classFolder = classFolders[parseInt(classId)];
+                    classFolder.folder(homework.title);
+                });
+
+                // 处理每个学生的作业
+                for (const student of students) {
+                    const checkRecord = await fetchStudentCheckRecords(student.id, homework.id);
+
+                    if (checkRecord) {
+                        // 记录成绩
+                        gradesData.push({
+                            studentId: student.id,
+                            homeworkId: homework.id,
+                            grade: checkRecord.grade
+                        });
+
+                        // 生成PDF
+                        try {
+                            const files = await fetchFileContents(supabaseClient, checkRecord.answers.storage_path);
+
+                            if (files.length > 0) {
+                                const review: Review = {
+                                    id: checkRecord.id,
+                                    homework_title: checkRecord.answers.homeworks.title,
+                                    course_name: checkRecord.answers.homeworks.courses.name,
+                                    graded_at: checkRecord.created_at,
+                                    grade: checkRecord.grade,
+                                    total_comment: checkRecord.total_comment,
+                                    comments: (checkRecord.comments_contents || []).map((content: string, index: number) => ({
+                                        content,
+                                        file: checkRecord.comments_files?.[index] || '',
+                                        line: checkRecord.comments_lines?.[index] || 0
+                                    })),
+                                    storage_path: checkRecord.answers.storage_path
+                                };
+
+                                const source = generateTypstSource(review, files);
+                                const pdfData = await generatePdf(source);
+
+                                // 添加到zip
+                                const pdfFileName = `${student.name}-${student.student_id}.pdf`;
+                                const classFolder = classFolders[student.class_id];
+                                const homeworkFolder = classFolder.folder(homework.title);
+                                homeworkFolder.file(pdfFileName, pdfData);
+                            }
+                        } catch (err) {
+                            console.error(`生成学生 ${student.name} 的 PDF 失败:`, err);
+                        }
+                    }
+                }
+            }
+
+            // 生成CSV文件
+            const csvContent = generateCSV(students, homeworks, gradesData);
+            zip.file('成绩汇总.csv', csvContent);
+
+            // 生成并下载zip文件
+            const zipContent = await zip.generateAsync({ type: 'blob' });
+            saveAs(zipContent, `${course.name}-成绩汇总.zip`);
+
+            setSuccess(`课程 ${course.name} 导出成功`);
+        } catch (err: any) {
+            console.error('导出课程失败:', err);
+            setError(`导出课程失败: ${err.message}`);
+        } finally {
+            setExportingCourse(null);
+        }
+    };
+
     const handleCourseSubmit = async (values: CourseFormValues) => {
         try {
             setError(null);
-            // console.log('提交课程表单:', values);
 
             const user = await supabaseClient.auth.getUser();
-            // console.log('当前用户:', user);
 
             if (!user.data.user) {
                 throw new Error('无法获取用户信息');
@@ -422,6 +684,13 @@ const CourseManagementPage: React.FC = () => {
                                                 onClick={() => setDeletingCourse(course)}
                                             >
                                                 <IconTrash size="1rem" stroke={1.5} />
+                                            </ActionIcon>
+                                            <ActionIcon
+                                                color="blue"
+                                                loading={exportingCourse === course.id}
+                                                onClick={() => handleExportCourse(course)}
+                                            >
+                                                <IconDownload size="1rem" stroke={1.5} />
                                             </ActionIcon>
                                         </Flex>
                                     </Table.Td>
