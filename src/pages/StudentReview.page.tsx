@@ -11,11 +11,12 @@ import {
     Button,
     Table,
     Badge,
-    Alert
+    Alert,
+    Select
 } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-import { EXTENSION_MAP, getLanguageByFileName } from '@/lib/wandbox';
+import { getLanguageByFileName } from '@/lib/wandbox';
 import { FileContent, Review } from '@/lib/review';
 
 // 声明全局 typst 类型
@@ -35,20 +36,33 @@ const StudentReviewPage: React.FC = () => {
     const [pdfLoading, setPdfLoading] = useState<number | null>(null);
     const [typstLoaded, setTypstLoaded] = useState(false);
     const [typstError, setTypstError] = useState<string | null>(null);
+    const [selectedCourseName, setSelectedCourseName] = useState<string>("所有课程")
+    const [filteredReviews, setFilteredReviews] = useState<Review[]>([]);
+    const [courseNames, setCourseNames] = useState<string[]>([]);
 
     const fileCacheRef = useRef<Record<number, FileContent[]>>({});
     const fetchedReviewsRef = useRef(false);
     const scriptRef = useRef<HTMLScriptElement | null>(null);
     const isMountedRef = useRef(true);
 
-    // 清理函数
     useEffect(() => {
         return () => {
             isMountedRef.current = false;
         };
     }, []);
 
-    // 简化的 Typst 初始化 - 避免复杂的配置
+    useEffect(() => {
+        if (selectedCourseName === "所有课程") {
+            setFilteredReviews(reviews);
+        } else {
+            setFilteredReviews(reviews.filter((r) => r.course_name === selectedCourseName))
+        }
+    }, [selectedCourseName, reviews])
+
+    useEffect(() => {
+        setCourseNames(["所有课程", ...new Set(reviews.map((r) => r.course_name))]);
+    }, [reviews])
+
     useEffect(() => {
         if (scriptRef.current || window.__typstInitialized) {
             if (window.__typstInitialized) {
@@ -58,78 +72,33 @@ const StudentReviewPage: React.FC = () => {
         }
 
         const initializeTypst = async () => {
-            try {
-                if (window.$typst && !window.$typst.__initialized) {
-                    if (typeof window.$typst.init === 'function') {
-                        await window.$typst.init({
-                            compiler: {
-                                getModule: () =>
-                                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-                            },
-                            renderer: {
-                                getModule: () =>
-                                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-                            },
-                        });
-                    } else {
-                        // 回退到旧 API，但尽量减少配置
-                        window.$typst.setCompilerInitOptions?.({
-                            getModule: () =>
-                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
-                        });
+            window.$typst.setCompilerInitOptions?.({
+                getModule: () =>
+                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
+            });
 
-                        window.$typst.setRendererInitOptions?.({
-                            getModule: () =>
-                                'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
-                        });
-                    }
+            window.$typst.setRendererInitOptions?.({
+                getModule: () =>
+                    'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
+            });
 
-                    // 配置包注册表
-                    if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
-                        console.log('Configuring package registry...');
-                        try {
-                            const registry = await window.TypstSnippet.fetchPackageRegistry();
-                            window.$typst?.use?.(registry);
-                            console.log('Package registry configured successfully');
-                        } catch (registryError) {
-                            console.warn('Package registry configuration failed:', registryError);
-                        }
-                    } else {
-                        console.warn('TypstSnippet.fetchPackageRegistry not available, package imports may fail');
-                    }
+            const registry = await window.TypstSnippet.fetchPackageRegistry();
+            window.$typst?.use?.(registry);
+            console.log('Package registry configured successfully');
 
-                    // 预加载字体资源
-                    if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
-                        try {
-                            window.$typst?.use?.(
-                                window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
-                            );
-                            console.log('Font assets preloaded');
-                        } catch (fontError) {
-                            console.warn('Font preloading failed:', fontError);
-                        }
-                    }
+            window.$typst?.use?.(
+                window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
+            );
+            console.log('Font assets preloaded');
 
-                    window.$typst.__initialized = true;
-                    window.__typstInitialized = true;
+            window.$typst.__initialized = true;
+            window.__typstInitialized = true;
 
-                    if (isMountedRef.current) {
-                        setTypstLoaded(true);
-                        setTypstError(null);
-                    }
-                    console.log('Typst 初始化成功');
-                }
-            } catch (err) {
-                console.error('Typst 初始化失败:', err);
-                if (isMountedRef.current) {
-                    setTypstError('Typst 初始化失败: ' + (err as Error).message);
-                }
+            if (isMountedRef.current) {
+                setTypstLoaded(true);
+                setTypstError(null);
             }
-        };
-
-        if (window.$typst) {
-            initializeTypst();
-            return;
+            console.log('Typst 初始化成功');
         }
 
         const script = document.createElement('script');
@@ -153,8 +122,6 @@ const StudentReviewPage: React.FC = () => {
 
         document.head.appendChild(script);
         scriptRef.current = script;
-
-        // 不在卸载时移除脚本，避免重复加载问题
     }, []);
 
     const fetchReviews = useCallback(async () => {
@@ -176,23 +143,26 @@ const StudentReviewPage: React.FC = () => {
             const { data: checks, error: checksError } = await supabaseClient
                 .from('checks')
                 .select(`
+                id,
+                grade,
+                total_comment,
+                comments_contents,
+                comments_files,
+                comments_lines,
+                created_at,
+                answers!inner(
                     id,
-                    grade,
-                    total_comment,
-                    comments_contents,
-                    comments_files,
-                    comments_lines,
-                    created_at,
-                    answers (
+                    submitted_at,
+                    storage_path,
+                    homeworks!inner(
                         id,
-                        submitted_at,
-                        storage_path,
-                        homeworks (
-                            id,
-                            title
+                        title,
+                        courses!inner(
+                            name
                         )
                     )
-                `)
+                )
+            `)
                 .eq('answers.student_id', session.user.id)
                 .order('created_at', { ascending: false });
 
@@ -203,6 +173,7 @@ const StudentReviewPage: React.FC = () => {
             const reviewData: Review[] = (checks || []).map((check: any) => ({
                 id: check.id,
                 homework_title: check.answers.homeworks.title,
+                course_name: check.answers.homeworks.courses.name,
                 graded_at: check.created_at,
                 grade: check.grade,
                 total_comment: check.total_comment || '',
@@ -467,19 +438,26 @@ const StudentReviewPage: React.FC = () => {
                     </Alert>
                 )}
 
+                <Select
+                    data={courseNames}
+                    defaultValue="所有课程"
+                    onChange={(value) => setSelectedCourseName(value!)}
+                />
+
                 <Paper withBorder pos="relative">
                     <LoadingOverlay visible={loading} />
                     <Table>
                         <Table.Thead>
                             <Table.Tr>
                                 <Table.Th>作业名称</Table.Th>
+                                <Table.Th>课程名称</Table.Th>
                                 <Table.Th>批改时间</Table.Th>
                                 <Table.Th>评分</Table.Th>
                                 <Table.Th>操作</Table.Th>
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {reviews.length === 0 ? (
+                            {filteredReviews.length === 0 ? (
                                 <Table.Tr>
                                     <Table.Td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>
                                         <Text c="dimmed">
@@ -488,13 +466,16 @@ const StudentReviewPage: React.FC = () => {
                                     </Table.Td>
                                 </Table.Tr>
                             ) : (
-                                reviews.map((review) => (
+                                filteredReviews.map((review) => (
                                     <Table.Tr
                                         key={review.id}
                                         style={{ cursor: 'pointer' }}
                                     >
                                         <Table.Td>
                                             <Text fw={500}>{review.homework_title}</Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Text fw={500}>{review.course_name}</Text>
                                         </Table.Td>
                                         <Table.Td>
                                             <Text size="sm">
