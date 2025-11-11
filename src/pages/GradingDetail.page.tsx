@@ -12,10 +12,20 @@ import {
     Flex,
     Stack,
     LoadingOverlay,
-    Group
+    Group,
+    Alert
 } from '@mantine/core';
-import { IconArrowLeft, IconCheck, IconX, IconEdit } from '@tabler/icons-react';
+import { IconArrowLeft, IconCheck, IconX, IconEdit, IconEye, IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
+import { fetchFileContents } from '@/lib/database';
+import {
+    initializeTypst,
+    loadTypstScript,
+    generateTypstSource,
+    generatePdf,
+    openPdf
+} from '@/lib/typst';
+import { Review, FileContent } from '@/lib/review';
 
 interface Submission {
     id: number;
@@ -28,6 +38,25 @@ interface Submission {
     storage_path: string;
 }
 
+// 定义批改记录接口
+interface CheckRecord {
+    id: number;
+    grade: string;
+    total_comment: string;
+    comments_contents: string[];
+    comments_files: string[];
+    comments_lines: number[];
+    created_at: string;
+    answers: {
+        homeworks: {
+            title: string;
+            courses: {
+                name: string;
+            };
+        };
+    };
+}
+
 const GradingDetailPage: React.FC = () => {
     const { homeworkId } = useParams();
     const navigate = useNavigate();
@@ -36,6 +65,36 @@ const GradingDetailPage: React.FC = () => {
     const [homeworkTitle, setHomeworkTitle] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [previewLoading, setPreviewLoading] = useState<number | null>(null);
+    const [typstLoaded, setTypstLoaded] = useState(false);
+    const [typstError, setTypstError] = useState<string | null>(null);
+
+    // 初始化 Typst
+    useEffect(() => {
+        const initTypst = async () => {
+            if (window.$typst && window.$typst.__initialized) {
+                setTypstLoaded(true);
+                return;
+            }
+
+            const scriptLoaded = await loadTypstScript();
+            if (!scriptLoaded) {
+                setTypstError('加载 Typst 编译器失败，请检查网络连接');
+                return;
+            }
+
+            const initialized = await initializeTypst({
+                onSuccess: () => setTypstLoaded(true),
+                onError: (errorMsg) => setTypstError(errorMsg)
+            });
+
+            if (initialized) {
+                setTypstLoaded(true);
+            }
+        };
+
+        initTypst();
+    }, []);
 
     useEffect(() => {
         if (userRole === 'teacher' && homeworkId) {
@@ -94,12 +153,144 @@ const GradingDetailPage: React.FC = () => {
         }
     };
 
+    // 获取批改记录
+    const fetchCheckRecord = async (answerId: number): Promise<CheckRecord | null> => {
+        try {
+            const { data: check, error: checkError } = await supabaseClient
+                .from('checks')
+                .select(`
+                    id,
+                    grade,
+                    total_comment,
+                    comments_contents,
+                    comments_files,
+                    comments_lines,
+                    created_at,
+                    answers!inner(
+                        homeworks!inner(
+                            title,
+                            courses!inner(
+                                name
+                            )
+                        )
+                    )
+                `)
+                .eq('answer_id', answerId)
+                .single();
+
+            if (checkError) {
+                console.error('获取批改记录失败:', checkError);
+                return null;
+            }
+
+            return check as unknown as CheckRecord;
+        } catch (err) {
+            console.error('获取批改记录失败:', err);
+            return null;
+        }
+    };
+
+    // 预览学生作业 PDF（包含教师评语）
+    const handlePreview = async (submission: Submission) => {
+        if (!submission || !supabaseClient) {
+            setError('未选择提交记录或客户端未初始化');
+            return;
+        }
+
+        if (!typstLoaded) {
+            setError('Typst 编译器正在加载中，请稍后重试');
+            return;
+        }
+
+        if (previewLoading === submission.id) {
+            return;
+        }
+
+        setPreviewLoading(submission.id);
+        setError(null);
+
+        try {
+            console.log('开始获取学生作业文件内容和批改记录...');
+
+            // 获取学生提交的文件内容
+            const files = await fetchFileContents(supabaseClient, submission.storage_path);
+
+            if (files.length === 0) {
+                throw new Error('未找到学生作业文件');
+            }
+
+            // 获取批改记录
+            const checkRecord = await fetchCheckRecord(submission.id);
+
+            // 构建 Review 对象
+            const review: Review = {
+                id: checkRecord?.id || 0,
+                homework_title: checkRecord?.answers.homeworks.title || homeworkTitle,
+                course_name: checkRecord?.answers.homeworks.courses.name || '',
+                graded_at: checkRecord?.created_at || '',
+                grade: checkRecord?.grade || submission.grade || '未评分',
+                total_comment: checkRecord?.total_comment || '暂无评语',
+                comments: (checkRecord?.comments_contents || []).map((content: string, index: number) => ({
+                    content,
+                    file: checkRecord?.comments_files?.[index] || '',
+                    line: checkRecord?.comments_lines?.[index] || 0
+                })),
+                storage_path: submission.storage_path
+            };
+
+            console.log('开始生成 Typst 源代码...');
+            const source = generateTypstSource(review, files);
+
+            console.log('开始编译 PDF...');
+            const pdfData = await generatePdf(source);
+
+            const opened = openPdf(pdfData);
+            if (!opened) {
+                setError('请允许弹出窗口以查看 PDF');
+            }
+        } catch (err: any) {
+            console.error('生成预览 PDF 失败:', err);
+            setError('生成预览 PDF 失败: ' + (err as Error).message);
+        } finally {
+            setPreviewLoading(null);
+        }
+    };
+
+    // 渲染编译器状态提示
+    const renderCompilerStatus = () => {
+        if (typstError) {
+            return (
+                <Alert icon={<IconAlertCircle size={16} />} title="编译器加载失败" color="red" mb="md">
+                    {typstError}
+                    <Button
+                        size="xs"
+                        variant="light"
+                        onClick={() => window.location.reload()}
+                        ml="sm"
+                    >
+                        重试
+                    </Button>
+                </Alert>
+            );
+        }
+
+        if (!typstLoaded) {
+            return (
+                <Alert icon={<IconAlertCircle size={16} />} title="编译器加载中" color="blue" mb="md">
+                    Typst 编译器正在加载，预览功能将在加载完成后可用...
+                </Alert>
+            );
+        }
+
+        return null;
+    };
+
     // 添加调试信息到渲染中
     const renderSubmissions = () => {
         if (submissions.length === 0) {
             return (
                 <Table.Tr>
-                    <Table.Td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>
+                    <Table.Td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>
                         <Text c="dimmed">
                             {loading ? '加载中...' : '暂无学生提交'}
                         </Text>
@@ -109,8 +300,6 @@ const GradingDetailPage: React.FC = () => {
         }
 
         return submissions.map((submission) => {
-            console.log(`渲染学生 ${submission.student_name}: has_check = ${submission.has_check}`);
-
             return (
                 <Table.Tr key={submission.id}>
                     <Table.Td>
@@ -138,13 +327,24 @@ const GradingDetailPage: React.FC = () => {
                         </Text>
                     </Table.Td>
                     <Table.Td>
-                        <Button
-                            leftSection={<IconEdit size={16} />}
-                            variant="light"
-                            onClick={() => navigate(`/grading/check/${submission.id}`)}
-                        >
-                            {submission.has_check ? '重新批改' : '开始批改'}
-                        </Button>
+                    </Table.Td>
+                    <Table.Td>
+                        <Flex>
+                            <Button
+                                variant="light"
+                                onClick={() => navigate(`/grading/check/${submission.id}`)}
+                            >
+                                {submission.has_check ? '重新批改' : '开始批改'}
+                            </Button>
+                            <Button
+                                variant="subtle"
+                                loading={previewLoading === submission.id}
+                                disabled={(!typstLoaded || !!typstError) && submission.has_check}
+                                onClick={() => handlePreview(submission)}
+                            >
+                                <IconEye />
+                            </Button>
+                        </Flex>
                     </Table.Td>
                 </Table.Tr>
             );
@@ -187,6 +387,8 @@ const GradingDetailPage: React.FC = () => {
                         共 {submissions.length} 份提交
                     </Text>
                 </Flex>
+
+                {renderCompilerStatus()}
 
                 {error && (
                     <Paper p="md" withBorder bg="red.0">

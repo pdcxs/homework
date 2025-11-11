@@ -1,3 +1,4 @@
+// /src/lib/database.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import { FileContent, Review } from './review';
 

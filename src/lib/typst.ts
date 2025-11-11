@@ -2,7 +2,6 @@
 import { getLanguageByFileName } from './wandbox';
 import { FileContent, Review } from './review';
 
-// 声明全局 typst 类型
 declare global {
     interface Window {
         $typst: any;
@@ -16,9 +15,6 @@ interface TypstInitOptions {
     onError?: (error: string) => void;
 }
 
-/**
- * 初始化 Typst 编译器
- */
 export const initializeTypst = async (options?: TypstInitOptions): Promise<boolean> => {
     try {
         if (window.$typst && !window.$typst.__initialized) {
@@ -63,9 +59,6 @@ export const initializeTypst = async (options?: TypstInitOptions): Promise<boole
     }
 };
 
-/**
- * 加载 Typst 脚本
- */
 export const loadTypstScript = (): Promise<boolean> => {
     return new Promise((resolve) => {
         if (window.$typst) {
@@ -94,9 +87,6 @@ export const loadTypstScript = (): Promise<boolean> => {
     });
 };
 
-/**
- * 生成 Typst 源代码
- */
 export const generateTypstSource = (review: Review, files: FileContent[]): string => {
     if (!review) return '';
 
@@ -104,6 +94,7 @@ export const generateTypstSource = (review: Review, files: FileContent[]): strin
     source += `#set page(margin: 1in)\n\n`;
     source += `#show heading.where(level: 1): set text(size: 30pt)\n\n`;
     source += `#show heading.where(level: 2): set text(size: 20pt)\n\n`;
+    source += `#set par(first-line-indent: (amount: 2em, all: true))\n\n`;
     source += `#set text(size: 15pt)\n\n`;
     source += `= ${review.homework_title}\n\n`;
     source += `== 评分\n\n`;
@@ -115,6 +106,8 @@ export const generateTypstSource = (review: Review, files: FileContent[]): strin
         const fileComments = review.comments.filter(comment => comment.file === file.file_name);
 
         source += `#zebraw(\n`;
+        source += `  comment-font-args: (font: "Noto Serif CJK SC"),\n`;
+        source += `  lang-font-args: (font: "Noto Serif CJK SC"),\n`;
         if (fileComments.length > 0) {
             source += `  highlight-lines: (\n`;
 
@@ -150,20 +143,10 @@ export const generatePdf = async (source: string): Promise<any> => {
     return pdfData;
 };
 
-export const openPdfInNewTab = (pdfData: any): boolean => {
+export const openPdf = (pdfData: any): boolean => {
     const pdfFile = new Blob([pdfData], { type: 'application/pdf' });
     const pdfUrl = URL.createObjectURL(pdfFile);
-
-    const newWindow = window.open(pdfUrl, '_blank');
-
-    if (!newWindow) {
-        return false;
-    }
-
-    // 5秒后自动清理 URL
-    setTimeout(() => {
-        URL.revokeObjectURL(pdfUrl);
-    }, 5000);
+    window.location.href = pdfUrl;
 
     return true;
 };

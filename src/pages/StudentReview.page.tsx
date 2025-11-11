@@ -18,7 +18,7 @@ import { IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
 import { FileContent, Review } from '@/lib/review';
 import { fetchStudentReviews, fetchFileContents, getUniqueCourseNames } from '@/lib/database';
-import { initializeTypst, loadTypstScript, generateTypstSource, generatePdf, openPdfInNewTab } from '@/lib/typst';
+import { initializeTypst, loadTypstScript, generateTypstSource, generatePdf, openPdf } from '@/lib/typst';
 
 const StudentReviewPage: React.FC = () => {
     const { supabaseClient: supabase, session } = useAuth();
@@ -133,7 +133,6 @@ const StudentReviewPage: React.FC = () => {
         }
     }, [session, fetchReviews]);
 
-    // 在新标签页打开 PDF
     const handleOpenPdf = async (review: Review) => {
         if (!review) {
             setError('未选择批改记录');
@@ -175,7 +174,7 @@ const StudentReviewPage: React.FC = () => {
             console.log('开始编译 PDF...');
             const pdfData = await generatePdf(source);
 
-            const opened = openPdfInNewTab(pdfData);
+            const opened = openPdf(pdfData);
             if (!opened) {
                 setError('请允许弹出窗口以查看 PDF');
             }
