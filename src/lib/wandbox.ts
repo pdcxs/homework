@@ -79,6 +79,11 @@ export const EXTENSION_MAP: Record<string, string> = {
     'sql': 'sql'
 };
 
+export const getLanguageByFileName = (fileName: string): string => {
+    const extension = fileName.toLowerCase().split('.').pop() || '';
+    return EXTENSION_MAP[extension] || 'text';
+};
+
 export const getLatestCompiler = async (language: string): Promise<string> => {
     const response = await fetch('https://wandbox.org/api/list.json');
 

@@ -1,6 +1,5 @@
 // pages/StudentReview.page.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
     Paper,
     Title,
@@ -14,9 +13,10 @@ import {
     Badge,
     Alert
 } from '@mantine/core';
-import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
+import { IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-import { EXTENSION_MAP } from '@/lib/wandbox';
+import { EXTENSION_MAP, getLanguageByFileName } from '@/lib/wandbox';
+import { FileContent, Review } from '@/lib/review';
 
 // 声明全局 typst 类型
 declare global {
@@ -27,33 +27,9 @@ declare global {
     }
 }
 
-interface Review {
-    id: number;
-    homework_title: string;
-    graded_at: string;
-    grade: string;
-    total_comment: string;
-    comments: Comment[];
-    storage_path: string;
-}
-
-interface Comment {
-    content: string;
-    file: string;
-    line: number;
-}
-
-interface FileContent {
-    file_name: string;
-    file_content: string;
-    editable: boolean;
-}
-
 const StudentReviewPage: React.FC = () => {
-    const navigate = useNavigate();
     const { supabaseClient, session } = useAuth();
     const [reviews, setReviews] = useState<Review[]>([]);
-    const [selectedReview, setSelectedReview] = useState<Review | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pdfLoading, setPdfLoading] = useState<number | null>(null);
@@ -253,19 +229,13 @@ const StudentReviewPage: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [supabaseClient]);
+    }, [session, supabaseClient]);
 
     useEffect(() => {
         if (session && !fetchedReviewsRef.current) {
             fetchReviews();
         }
     }, [session, fetchReviews]);
-
-    // 根据文件名获取对应的语言
-    const getLanguageByFileName = (fileName: string): string => {
-        const extension = fileName.toLowerCase().split('.').pop() || '';
-        return EXTENSION_MAP[extension] || 'text';
-    };
 
     const fetchFileContents = async (storagePath: string): Promise<FileContent[]> => {
         try {
@@ -521,10 +491,7 @@ const StudentReviewPage: React.FC = () => {
                                 reviews.map((review) => (
                                     <Table.Tr
                                         key={review.id}
-                                        style={{
-                                            cursor: 'pointer',
-                                            backgroundColor: selectedReview?.id === review.id ? 'var(--mantine-color-blue-light)' : 'transparent'
-                                        }}
+                                        style={{ cursor: 'pointer' }}
                                     >
                                         <Table.Td>
                                             <Text fw={500}>{review.homework_title}</Text>
