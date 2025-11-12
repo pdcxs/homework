@@ -15,7 +15,7 @@ import {
     Group,
     Alert
 } from '@mantine/core';
-import { IconArrowLeft, IconCheck, IconX, IconEdit, IconEye, IconAlertCircle } from '@tabler/icons-react';
+import { IconArrowLeft, IconCheck, IconX, IconEye, IconAlertCircle, IconDownload } from '@tabler/icons-react';
 import { useAuth } from '@/App';
 import { fetchCheckRecord, fetchFileContents, Review, Submission } from '@/lib/database';
 import {
@@ -25,6 +25,8 @@ import {
     generatePdf,
     openPdf
 } from '@/lib/typst';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 const GradingDetailPage: React.FC = () => {
     const { homeworkId } = useParams();
@@ -37,8 +39,8 @@ const GradingDetailPage: React.FC = () => {
     const [previewLoading, setPreviewLoading] = useState<number | null>(null);
     const [typstLoaded, setTypstLoaded] = useState(false);
     const [typstError, setTypstError] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
 
-    // 初始化 Typst
     useEffect(() => {
         const initTypst = async () => {
             if (window.$typst && window.$typst.__initialized) {
@@ -75,7 +77,6 @@ const GradingDetailPage: React.FC = () => {
         try {
             setLoading(true);
 
-            // 获取作业信息
             const { data: homework, error: homeworkError } = await supabaseClient
                 .from('homeworks')
                 .select('title')
@@ -85,7 +86,6 @@ const GradingDetailPage: React.FC = () => {
             if (homeworkError) throw homeworkError;
             setHomeworkTitle(homework.title);
 
-            // 使用 RPC 函数获取数据
             const { data: answers, error: answersError } = await supabaseClient
                 .rpc('get_teacher_submissions', { homework_id: parseInt(homeworkId!) });
 
@@ -93,9 +93,7 @@ const GradingDetailPage: React.FC = () => {
 
             console.log('RPC 返回数据:', answers);
 
-            // 修复映射逻辑
             const submissionData: Submission[] = answers.map((answer: any) => {
-                // 确保 has_check 是布尔值
                 const hasCheck = Boolean(answer.has_check);
 
                 console.log(`学生 ${answer.student_name}: has_check = ${answer.has_check}, 转换为 = ${hasCheck}`);
@@ -143,17 +141,14 @@ const GradingDetailPage: React.FC = () => {
         try {
             console.log('开始获取学生作业文件内容和批改记录...');
 
-            // 获取学生提交的文件内容
             const files = await fetchFileContents(supabaseClient, submission.storage_path);
 
             if (files.length === 0) {
                 throw new Error('未找到学生作业文件');
             }
 
-            // 获取批改记录
             const checkRecord = await fetchCheckRecord(supabaseClient, submission.id);
 
-            // 构建 Review 对象
             const review: Review = {
                 id: checkRecord?.id || 0,
                 homework_title: checkRecord?.answers.homeworks.title || homeworkTitle,
@@ -188,7 +183,6 @@ const GradingDetailPage: React.FC = () => {
         }
     };
 
-    // 渲染编译器状态提示
     const renderCompilerStatus = () => {
         if (typstError) {
             return (
@@ -217,7 +211,69 @@ const GradingDetailPage: React.FC = () => {
         return null;
     };
 
-    // 添加调试信息到渲染中
+    const handleExportAllSequential = async () => {
+        if (!submissions.length) {
+            setError('没有可导出的学生作业');
+            return;
+        }
+
+        setExporting(true);
+        setError(null);
+
+        try {
+            const zip = new JSZip();
+            const readOnlyFolder = zip.folder('只读文件');
+            const processedReadOnlyFiles = new Set<string>();
+
+            for (const submission of submissions) {
+                try {
+                    console.log(`正在处理学生 ${submission.student_name} 的作业...`);
+
+                    const files = await fetchFileContents(supabaseClient, submission.storage_path);
+
+                    if (files.length === 0) {
+                        console.warn(`学生 ${submission.student_name} 没有找到文件`);
+                        continue;
+                    }
+
+                    // 创建学生文件夹
+                    const studentFolderName = `${submission.student_name} - ${submission.student_id_number}`;
+                    const studentFolder = zip.folder(studentFolderName);
+                    console.log("files: ", files);
+
+                    files.forEach(file => {
+                        if (!file.editable) {
+                            if (readOnlyFolder && !processedReadOnlyFiles.has(file.file_name)) {
+                                readOnlyFolder.file(file.file_name, file.file_content);
+                                processedReadOnlyFiles.add(file.file_name);
+                            }
+                        } else {
+                            if (studentFolder) {
+                                studentFolder.file(file.file_name, file.file_content);
+                            }
+                        }
+                    });
+
+                    console.log(`学生 ${submission.student_name} 处理完成`);
+
+                } catch (err) {
+                    console.error(`处理学生 ${submission.student_name} 的作业时出错:`, err);
+                }
+            }
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            saveAs(zipBlob, `${homeworkTitle}-学生作业.zip`);
+
+            console.log('导出完成');
+
+        } catch (err: any) {
+            console.error('导出失败:', err);
+            setError(`导出失败: ${err.message}`);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const renderSubmissions = () => {
         if (submissions.length === 0) {
             return (
@@ -259,8 +315,6 @@ const GradingDetailPage: React.FC = () => {
                         </Text>
                     </Table.Td>
                     <Table.Td>
-                    </Table.Td>
-                    <Table.Td>
                         <Flex>
                             <Button
                                 variant="light"
@@ -290,7 +344,7 @@ const GradingDetailPage: React.FC = () => {
                     <Text style={{ textAlign: 'center', fontWeight: 'bold' }} size="xl">
                         无访问权限
                     </Text>
-                    <Text style={{ textAlign: 'center' }} color="dimmed" mt="md">
+                    <Text style={{ textAlign: 'center' }} c="dimmed" mt="md">
                         只有教师可以访问作业批改页面
                     </Text>
                 </Paper>
@@ -312,19 +366,30 @@ const GradingDetailPage: React.FC = () => {
                         </Button>
                         <div>
                             <Title order={1}>{homeworkTitle}</Title>
-                            <Text color="dimmed">学生提交记录</Text>
+                            <Text c="dimmed">学生提交记录</Text>
                         </div>
                     </Group>
-                    <Text color="dimmed">
-                        共 {submissions.length} 份提交
-                    </Text>
+                    <Group>
+                        <Text c="dimmed">
+                            共 {submissions.length} 份提交
+                        </Text>
+                        <Button
+                            leftSection={<IconDownload size={16} />}
+                            onClick={handleExportAllSequential}
+                            loading={exporting}
+                            disabled={submissions.length === 0 || exporting}
+                            variant="filled"
+                        >
+                            导出所有作业
+                        </Button>
+                    </Group>
                 </Flex>
 
                 {renderCompilerStatus()}
 
                 {error && (
                     <Paper p="md" withBorder bg="red.0">
-                        <Text color="red">{error}</Text>
+                        <Text c="red">{error}</Text>
                     </Paper>
                 )}
 
