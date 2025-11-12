@@ -18,31 +18,43 @@ interface TypstInitOptions {
 export const initializeTypst = async (options?: TypstInitOptions): Promise<boolean> => {
     try {
         if (window.$typst && !window.$typst.__initialized) {
-            // 设置编译器选项
+            let providers = [];
+            if (window.TypstSnippet?.fetchPackageRegistry) {
+                providers.push(window.TypstSnippet.fetchPackageRegistry);
+            }
+
+            if (window.TypstSnippet?.preloadFontAssets) {
+                providers.push(window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] }));
+            }
+
+            window.$typst.use(...providers);
+
             window.$typst.setCompilerInitOptions?.({
+                beforeBuild: [],
                 getModule: () =>
                     'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm',
             });
 
             window.$typst.setRendererInitOptions?.({
+                beforeBuild: [],
                 getModule: () =>
                     'https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm',
             });
 
-            // 配置包注册表
-            if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
-                const registry = await window.TypstSnippet.fetchPackageRegistry();
-                window.$typst?.use?.(registry);
-                console.log('Package registry configured successfully');
-            }
+            // // 配置包注册表
+            // if (window.TypstSnippet && window.TypstSnippet.fetchPackageRegistry) {
+            //     const registry = await window.TypstSnippet.fetchPackageRegistry();
+            //     window.$typst?.use?.(registry);
+            //     console.log('Package registry configured successfully');
+            // }
 
-            // 预加载字体资源
-            if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
-                window.$typst?.use?.(
-                    window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
-                );
-                console.log('Font assets preloaded');
-            }
+            // // 预加载字体资源
+            // if (window.TypstSnippet && window.TypstSnippet.preloadFontAssets) {
+            //     window.$typst?.use?.(
+            //         window.TypstSnippet.preloadFontAssets({ assets: ['text', 'cjk'] })
+            //     );
+            //     console.log('Font assets preloaded');
+            // }
 
             window.$typst.__initialized = true;
             window.__typstInitialized = true;
@@ -105,11 +117,13 @@ export const generateTypstSource = (review: Review, files: FileContent[]): strin
     source += `#box(stroke: black, inset: 10pt)[*${review.grade}*]\n\n`;
     source += `== 总体评语\n\n${review.total_comment}\n\n`;
     source += `== 作业内容\n\n`;
+    source += `#block(stroke: 1pt + black, inset: 2em, breakable: true, width: 100%)[\n`;
     source += `#cmarker.render("${review.description
         .replaceAll(`"`, `\\"`)
         .replace(/^# (.+)/, '### $1')
         .replace(/^## (.+)/, '#### $1')
         .replace(/^### (.+)/, '#### $1')}", math: mitex)\n\n`;
+    source += `]\n\n`;
     source += `== 源程序\n\n`;
 
     files.forEach((file) => {
