@@ -129,9 +129,35 @@ export default function HomeworkSubmitPage() {
                     if (submission.hasSubmission && submission.storagePath) {
                         const submittedContents = await loadSubmittedFiles(supabase, submission.storagePath);
                         setSubmittedFileContents(submittedContents);
-                        if (Object.keys(submittedContents).length > 0) {
-                            setFileContents(submittedContents);
+
+                        // 检查提交的文件中是否有自定义文件
+                        const submittedFileNames = Object.keys(submittedContents);
+                        const predefinedFileNames = filesData.map(f => f.file_name);
+
+                        // 找出自定义文件（在提交中存在但在预定义文件中不存在的文件）
+                        const customFiles: CustomFile[] = submittedFileNames
+                            .filter(fileName => !predefinedFileNames.includes(fileName))
+                            .map(fileName => ({
+                                id: `custom-${fileName}`,
+                                file_name: fileName,
+                                file_content: submittedContents[fileName],
+                                editable: true,
+                                isCustom: true
+                            }));
+
+                        // 合并预定义文件和自定义文件
+                        const allFiles = [...editorFiles, ...customFiles];
+                        setFiles(allFiles);
+                        console.log(allFiles);
+
+                        // 更新文件内容
+                        setFileContents(submittedContents);
+
+                        // 设置激活文件
+                        if (allFiles.length > 0) {
+                            setActiveFile(allFiles[0].file_name);
                         }
+
                         setHasPreviousSubmission(true);
                     }
                 }
