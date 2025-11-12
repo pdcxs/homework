@@ -16,8 +16,7 @@ import {
 } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-import { FileContent, Review } from '@/lib/review';
-import { fetchStudentReviews, fetchFileContents, getUniqueCourseNames } from '@/lib/database';
+import { fetchStudentReviews, fetchFileContents, getUniqueCourseNames, FileContent, Review } from '@/lib/database';
 import { initializeTypst, loadTypstScript, generateTypstSource, generatePdf, openPdf } from '@/lib/typst';
 
 const StudentReviewPage: React.FC = () => {

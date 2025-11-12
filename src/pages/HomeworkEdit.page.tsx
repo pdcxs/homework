@@ -51,7 +51,6 @@ const HomeworkEditPage: React.FC = () => {
     const navigate = useNavigate();
     const { supabaseClient: supabase } = useAuth();
     const [courses, setCourses] = useState<Course[]>([]);
-    const [homework, setHomework] = useState<Homework | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -84,7 +83,6 @@ const HomeworkEditPage: React.FC = () => {
 
             if (error) throw error;
 
-            setHomework(data);
             form.setValues({
                 title: data.title,
                 course_id: data.course_id.toString(),

@@ -96,7 +96,7 @@ export default function HomeworkSubmitPage() {
             // 转换文件类型
             const editorFiles: CustomFile[] = filesData.map(file => ({
                 ...file,
-                id: file.id.toString(),
+                id: file.id!.toString(),
                 isCustom: false
             }));
             setFiles(editorFiles);

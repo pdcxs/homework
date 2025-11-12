@@ -17,7 +17,7 @@ import {
 } from '@mantine/core';
 import { IconArrowLeft, IconCheck, IconX, IconEdit, IconEye, IconAlertCircle } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-import { fetchFileContents } from '@/lib/database';
+import { fetchCheckRecord, fetchFileContents, Review, Submission } from '@/lib/database';
 import {
     initializeTypst,
     loadTypstScript,
@@ -25,38 +25,6 @@ import {
     generatePdf,
     openPdf
 } from '@/lib/typst';
-import { Review } from '@/lib/review';
-
-interface Submission {
-    id: number;
-    student_id: string;
-    student_name: string;
-    student_id_number: string;
-    submitted_at: string;
-    has_check: boolean;
-    grade?: string;
-    storage_path: string;
-}
-
-// 定义批改记录接口
-interface CheckRecord {
-    id: number;
-    grade: string;
-    total_comment: string;
-    comments_contents: string[];
-    comments_files: string[];
-    comments_lines: number[];
-    created_at: string;
-    answers: {
-        homeworks: {
-            title: string;
-            description: string;
-            courses: {
-                name: string;
-            };
-        };
-    };
-}
 
 const GradingDetailPage: React.FC = () => {
     const { homeworkId } = useParams();
@@ -154,45 +122,6 @@ const GradingDetailPage: React.FC = () => {
         }
     };
 
-    // 获取批改记录
-    const fetchCheckRecord = async (answerId: number): Promise<CheckRecord | null> => {
-        try {
-            const { data: check, error: checkError } = await supabaseClient
-                .from('checks')
-                .select(`
-                    id,
-                    grade,
-                    total_comment,
-                    comments_contents,
-                    comments_files,
-                    comments_lines,
-                    created_at,
-                    answers!inner(
-                        homeworks!inner(
-                            title,
-                            description,
-                            courses!inner(
-                                name
-                            )
-                        )
-                    )
-                `)
-                .eq('answer_id', answerId)
-                .single();
-
-            if (checkError) {
-                console.error('获取批改记录失败:', checkError);
-                return null;
-            }
-
-            return check as unknown as CheckRecord;
-        } catch (err) {
-            console.error('获取批改记录失败:', err);
-            return null;
-        }
-    };
-
-    // 预览学生作业 PDF（包含教师评语）
     const handlePreview = async (submission: Submission) => {
         if (!submission || !supabaseClient) {
             setError('未选择提交记录或客户端未初始化');
@@ -222,7 +151,7 @@ const GradingDetailPage: React.FC = () => {
             }
 
             // 获取批改记录
-            const checkRecord = await fetchCheckRecord(submission.id);
+            const checkRecord = await fetchCheckRecord(supabaseClient, submission.id);
 
             // 构建 Review 对象
             const review: Review = {

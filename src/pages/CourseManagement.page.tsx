@@ -32,26 +32,11 @@ import {
     generateTypstSource,
     generatePdf
 } from '@/lib/typst';
-import { fetchFileContents } from '@/lib/database';
-import { Review } from '@/lib/review';
-
-// 类型定义
-interface Class {
-    id: number;
-    name: string;
-    active: boolean;
-}
-
-interface Course {
-    id: number;
-    name: string;
-    active: boolean;
-    language: string;
-    created_at: string;
-    storage?: string;
-    class_ids: number[];
-    teacher: string;
-}
+import {
+    Class, Course, fetchCourseHomeworks, fetchCourses,
+    fetchCourseStudents, fetchFileContents,
+    fetchStudentCheckRecords, HomeworkInfo, Review, StudentInfo
+} from '@/lib/database';
 
 interface CourseFormValues {
     name: string;
@@ -63,45 +48,6 @@ interface CourseFormValues {
 interface ClassFormValues {
     name: string;
     active: boolean;
-}
-
-// 批改记录接口
-interface CheckRecord {
-    id: number;
-    grade: string;
-    total_comment: string;
-    comments_contents: string[];
-    comments_files: string[];
-    comments_lines: number[];
-    created_at: string;
-    answers: {
-        student_id: string;
-        submitted_at: string;
-        storage_path: string;
-        homeworks: {
-            id: number;
-            title: string;
-            description: string;
-            courses: {
-                name: string;
-            };
-        };
-    };
-}
-
-// 学生信息接口
-interface StudentInfo {
-    id: string;
-    name: string;
-    student_id: string;
-    class_id: number;
-    class_name: string;
-}
-
-// 作业信息接口
-interface HomeworkInfo {
-    id: number;
-    title: string;
 }
 
 const CourseManagementPage: React.FC = () => {
@@ -145,12 +91,16 @@ const CourseManagementPage: React.FC = () => {
 
     // 初始化数据
     useEffect(() => {
-        if (userRole === 'teacher') {
-            setLoading(true);
-            fetchCourses();
-            fetchClasses();
-            setLoading(false);
+        const getCoursesAndClasses = async () => {
+            if (userRole === 'teacher') {
+                setLoading(true);
+                const cs = await fetchCourses(supabaseClient);
+                setCourses(cs);
+                fetchClasses();
+                setLoading(false);
+            }
         }
+        getCoursesAndClasses();
     }, [userRole]);
 
     // 重置表单
@@ -171,32 +121,6 @@ const CourseManagementPage: React.FC = () => {
         setCourseModalOpened(true);
     };
 
-    const fetchCourses = async () => {
-        try {
-            setLoading(true);
-
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) throw new Error('用户未登录');
-
-            const { data, error } = await supabaseClient
-                .from('courses')
-                .select('*')
-                .eq('teacher', user.id)
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('获取课程失败:', error);
-                throw error;
-            }
-
-            setCourses(data || []);
-        } catch (err: any) {
-            console.error('获取课程失败:', err);
-            setError(`获取课程失败: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const fetchClasses = async () => {
         try {
@@ -214,90 +138,6 @@ const CourseManagementPage: React.FC = () => {
         } catch (err: any) {
             console.error('获取班级失败:', err);
             setError(`获取班级失败: ${err.message}`);
-        }
-    };
-
-    // 获取课程的所有学生信息
-    const fetchCourseStudents = async (courseId: number): Promise<StudentInfo[]> => {
-        try {
-            const { data: students, error } = await supabaseClient
-                .from('profiles')
-                .select('id, name, student_id, class_id, classes(name)')
-                .in('class_id', (await supabaseClient
-                    .from('courses')
-                    .select('class_ids')
-                    .eq('id', courseId)
-                    .single()
-                ).data?.class_ids || []);
-
-            if (error) throw error;
-
-            return (students || []).map(student => ({
-                id: student.id,
-                name: student.name,
-                student_id: student.student_id,
-                class_id: student.class_id,
-                class_name: (student.classes as any)?.name || '未知班级'
-            }));
-        } catch (err) {
-            console.error('获取学生信息失败:', err);
-            return [];
-        }
-    };
-
-    // 获取课程的所有作业
-    const fetchCourseHomeworks = async (courseId: number): Promise<HomeworkInfo[]> => {
-        try {
-            const { data: homeworks, error } = await supabaseClient
-                .from('homeworks')
-                .select('id, title')
-                .eq('course_id', courseId);
-
-            if (error) throw error;
-
-            return homeworks || [];
-        } catch (err) {
-            console.error('获取作业信息失败:', err);
-            return [];
-        }
-    };
-
-    // 获取学生的作业批改记录
-    const fetchStudentCheckRecords = async (studentId: string, homeworkId: number): Promise<CheckRecord | null> => {
-        try {
-            const { data: check, error } = await supabaseClient
-                .from('checks')
-                .select(`
-                    id,
-                    grade,
-                    total_comment,
-                    comments_contents,
-                    comments_files,
-                    comments_lines,
-                    created_at,
-                    answers!inner(
-                        student_id,
-                        submitted_at,
-                        storage_path,
-                        homeworks!inner(
-                            id,
-                            title,
-                            description,
-                            courses!inner(
-                                name
-                            )
-                        )
-                    )
-                `)
-                .eq('answers.student_id', studentId)
-                .eq('answers.homework_id', homeworkId)
-                .single();
-
-            if (error) return null;
-            return check as unknown as CheckRecord;
-        } catch (err) {
-            console.error('获取批改记录失败:', err);
-            return null;
         }
     };
 
@@ -345,8 +185,8 @@ const CourseManagementPage: React.FC = () => {
             }
 
             // 获取课程相关数据
-            const students = await fetchCourseStudents(course.id);
-            const homeworks = await fetchCourseHomeworks(course.id);
+            const students = await fetchCourseStudents(supabaseClient, course.id);
+            const homeworks = await fetchCourseHomeworks(supabaseClient, course.id);
 
             if (students.length === 0 || homeworks.length === 0) {
                 setError('该课程没有学生或作业数据');
@@ -375,7 +215,7 @@ const CourseManagementPage: React.FC = () => {
 
                 // 处理每个学生的作业
                 for (const student of students) {
-                    const checkRecord = await fetchStudentCheckRecords(student.id, homework.id);
+                    const checkRecord = await fetchStudentCheckRecords(supabaseClient, student.id, homework.id);
 
                     if (checkRecord) {
                         // 记录成绩
@@ -387,7 +227,7 @@ const CourseManagementPage: React.FC = () => {
 
                         // 生成PDF
                         try {
-                            const files = await fetchFileContents(supabaseClient, checkRecord.answers.storage_path);
+                            const files = await fetchFileContents(supabaseClient, checkRecord.answers.storage_path!);
 
                             if (files.length > 0) {
                                 const review: Review = {
@@ -403,7 +243,7 @@ const CourseManagementPage: React.FC = () => {
                                         file: checkRecord.comments_files?.[index] || '',
                                         line: checkRecord.comments_lines?.[index] || 0
                                     })),
-                                    storage_path: checkRecord.answers.storage_path
+                                    storage_path: checkRecord.answers.storage_path!
                                 };
 
                                 const source = generateTypstSource(review, files);
@@ -488,7 +328,7 @@ const CourseManagementPage: React.FC = () => {
 
             setCourseModalOpened(false);
             resetCourseForm();
-            fetchCourses();
+            fetchCourses(supabaseClient);
         } catch (err: any) {
             console.error('操作失败:', err);
             setError(`操作失败: ${err.message}`);
@@ -538,7 +378,7 @@ const CourseManagementPage: React.FC = () => {
 
             setSuccess('课程删除成功');
             setDeletingCourse(null);
-            fetchCourses();
+            fetchCourses(supabaseClient);
         } catch (err: any) {
             console.error('删除失败:', err);
             setError(`删除失败: ${err.message}`);

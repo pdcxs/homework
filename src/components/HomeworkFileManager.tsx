@@ -1,5 +1,5 @@
 // components/HomeworkFileManager.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Paper,
     Title,
@@ -16,14 +16,7 @@ import {
 } from '@mantine/core';
 import { IconPlus, IconEdit, IconTrash, IconFileCode } from '@tabler/icons-react';
 import { useAuth } from '@/App';
-
-interface HomeworkFile {
-    id?: number;
-    homework_id: number;
-    file_name: string;
-    file_content: string;
-    editable: boolean;
-}
+import { HomeworkFile } from '@/lib/database';
 
 interface HomeworkFileManagerProps {
     homeworkId: string;
@@ -32,13 +25,14 @@ interface HomeworkFileManagerProps {
 export function HomeworkFileManager({ homeworkId }: HomeworkFileManagerProps) {
     const { supabaseClient: supabase } = useAuth();
     const [files, setFiles] = useState<HomeworkFile[]>([]);
-    const [loading, setLoading] = useState(false);
     const [editingFile, setEditingFile] = useState<HomeworkFile | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [newFile, setNewFile] = useState<Omit<HomeworkFile, 'homework_id'>>({
         file_name: '',
         file_content: '',
         editable: true,
+        is_custom: false,
+        custom_id: '',
     });
 
     useEffect(() => {
@@ -47,7 +41,6 @@ export function HomeworkFileManager({ homeworkId }: HomeworkFileManagerProps) {
 
     const fetchFiles = async () => {
         try {
-            setLoading(true);
             const { data, error } = await supabase
                 .from('homework_files')
                 .select('*')
@@ -58,8 +51,6 @@ export function HomeworkFileManager({ homeworkId }: HomeworkFileManagerProps) {
             setFiles(data || []);
         } catch (err: any) {
             console.error('获取文件失败:', err);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -81,6 +72,8 @@ export function HomeworkFileManager({ homeworkId }: HomeworkFileManagerProps) {
                 file_name: '',
                 file_content: '',
                 editable: true,
+                custom_id: '',
+                is_custom: false,
             });
             fetchFiles();
         } catch (err: any) {
@@ -110,7 +103,7 @@ export function HomeworkFileManager({ homeworkId }: HomeworkFileManagerProps) {
         }
     };
 
-    const handleDeleteFile = async (fileId: number) => {
+    const handleDeleteFile = async (fileId: bigint) => {
         try {
             const { error } = await supabase
                 .from('homework_files')

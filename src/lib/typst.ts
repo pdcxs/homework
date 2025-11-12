@@ -1,6 +1,6 @@
 // /src/lib/typst.ts
+import { FileContent, Review } from './database';
 import { getLanguageByFileName } from './wandbox';
-import { FileContent, Review } from './review';
 
 declare global {
     interface Window {

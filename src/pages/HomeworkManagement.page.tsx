@@ -18,27 +18,7 @@ import {
 import { IconEdit, IconTrash, IconPlus, IconEye, IconSchool } from '@tabler/icons-react';
 import { useAuth } from '@/App';
 import { useNavigate } from 'react-router-dom';
-
-interface Course {
-    id: number;
-    name: string;
-    language: string;
-}
-
-interface Homework {
-    id: number;
-    course_id: number;
-    title: string;
-    description: string;
-    deadline: string;
-    created_at: string;
-    published: boolean;
-    compile_options?: string;
-    inputs?: string[];
-    outputs?: string[];
-    course_name: string;
-    language: string;
-}
+import { fetchHomeworks, Homework } from '@/lib/database';
 
 const HomeworkManagement: React.FC = () => {
     const { supabaseClient: supabase, userRole } = useAuth();
@@ -50,40 +30,23 @@ const HomeworkManagement: React.FC = () => {
     const [success, setSuccess] = useState<string | null>(null);
     const [deletingHomework, setDeletingHomework] = useState<Homework | null>(null);
 
-    // 获取数据
     useEffect(() => {
+        const init = async () => {
+            try {
+                setLoading(true);
+                const hws = await fetchHomeworks(supabase);
+                setHomeworks(hws);
+            } catch (err: any) {
+                console.error(`获取作业失败: ${err}`);
+            } finally {
+                setLoading(false);
+            }
+        }
         if (userRole === 'teacher') {
-            fetchHomeworks();
+            init();
         }
     }, [userRole]);
 
-    const fetchHomeworks = async () => {
-        try {
-            setLoading(true);
-            const { data, error } = await supabase
-                .from('homeworks')
-                .select(`
-          *,
-          courses(name, language)
-        `)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-
-            const processedHomeworks = data?.map(hw => ({
-                ...hw,
-                course_name: hw.courses.name,
-                language: hw.courses.language,
-            })) || [];
-
-            setHomeworks(processedHomeworks);
-        } catch (err: any) {
-            console.error('获取作业失败:', err);
-            setError(`获取作业失败: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleDeleteHomework = async () => {
         if (!deletingHomework) return;
@@ -99,27 +62,14 @@ const HomeworkManagement: React.FC = () => {
 
             setSuccess('作业删除成功');
             setDeletingHomework(null);
-            fetchHomeworks();
+            setLoading(true);
+            const hws = await fetchHomeworks(supabase);
+            setHomeworks(hws);
         } catch (err: any) {
             console.error('删除失败:', err);
             setError(`删除失败: ${err.message}`);
-        }
-    };
-
-    const handlePublishToggle = async (homework: Homework) => {
-        try {
-            const { error } = await supabase
-                .from('homeworks')
-                .update({ published: !homework.published })
-                .eq('id', homework.id);
-
-            if (error) throw error;
-
-            setSuccess(`作业已${!homework.published ? '发布' : '取消发布'}`);
-            fetchHomeworks();
-        } catch (err: any) {
-            console.error('更新发布状态失败:', err);
-            setError(`更新发布状态失败: ${err.message}`);
+        } finally {
+            setLoading(false);
         }
     };
 

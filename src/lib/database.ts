@@ -1,15 +1,20 @@
 // /src/lib/database.ts
 import { SupabaseClient } from '@supabase/supabase-js';
-import { FileContent, Review } from './review';
 
 export interface HomeworkFile {
-    id: bigint;
+    id?: bigint;
     homework_id: bigint;
     file_name: string;
     file_content: string;
     editable: boolean;
     custom_id: string;
     is_custom: boolean;
+}
+
+export interface Class {
+    id: number;
+    name: string;
+    active: boolean;
 }
 
 export interface HomeworkDetails {
@@ -32,6 +37,104 @@ export interface UserProfile {
     student_id: string;
     class_id: number;
     class_name: string,
+}
+
+export interface Review {
+    id: number;
+    homework_title: string;
+    course_name: string;
+    graded_at: string;
+    grade: string;
+    total_comment: string;
+    comments: Comment[];
+    storage_path: string;
+    description: string;
+}
+
+export interface CheckRecord {
+    id: number;
+    grade: string;
+    total_comment: string;
+    comments_contents: string[];
+    comments_files: string[];
+    comments_lines: number[];
+    created_at: string;
+    answers: {
+        id?: number;
+        student_id?: string;
+        submitted_at?: string;
+        storage_path?: string;
+        homeworks: {
+            id?: number;
+            title: string;
+            description: string;
+            courses: {
+                name: string;
+            };
+        };
+    };
+}
+
+export interface Comment {
+    content: string;
+    file: string;
+    line: number;
+}
+
+export interface FileContent {
+    file_name: string;
+    file_content: string;
+    editable: boolean;
+}
+
+export interface Submission {
+    id: number;
+    student_id: string;
+    student_name: string;
+    student_id_number: string;
+    submitted_at: string;
+    has_check: boolean;
+    grade?: string;
+    storage_path: string;
+}
+
+export interface StudentInfo {
+    id: string;
+    name: string;
+    student_id: string;
+    class_id: number;
+    class_name: string;
+}
+
+export interface HomeworkInfo {
+    id: number;
+    title: string;
+}
+
+export interface Course {
+    id: number;
+    name: string;
+    active: boolean;
+    language: string;
+    created_at: string;
+    storage?: string;
+    class_ids: number[];
+    teacher: string;
+}
+
+export interface Homework {
+    id: number;
+    course_id: number;
+    title: string;
+    description: string;
+    deadline: string;
+    created_at: string;
+    published: boolean;
+    compile_options?: string;
+    inputs?: string[];
+    outputs?: string[];
+    course_name: string;
+    language: string;
 }
 
 // 获取作业详情
@@ -375,4 +478,178 @@ export const fetchFileContents = async (
 export const getUniqueCourseNames = (reviews: Review[]): string[] => {
     const courseNames = reviews.map(review => review.course_name);
     return [...new Set(courseNames)].filter(Boolean);
+};
+
+export const fetchStudentCheckRecords = async (
+    supabaseClient: SupabaseClient,
+    studentId: string,
+    homeworkId: number
+): Promise<CheckRecord | null> => {
+    try {
+        const { data: check, error } = await supabaseClient
+            .from('checks')
+            .select(`
+        id,
+        grade,
+        total_comment,
+        comments_contents,
+        comments_files,
+        comments_lines,
+        created_at,
+        answers!inner(
+          student_id,
+          submitted_at,
+          storage_path,
+          homeworks!inner(
+            id,
+            title,
+            description,
+            courses!inner(
+              name
+            )
+          )
+        )
+      `)
+            .eq('answers.student_id', studentId)
+            .eq('answers.homework_id', homeworkId)
+            .single();
+
+        if (error) return null;
+        return check as unknown as CheckRecord;
+    } catch (err) {
+        console.error('获取批改记录失败:', err);
+        return null;
+    }
+};
+
+export const fetchCheckRecord = async (
+    supabaseClient: SupabaseClient,
+    answerId: number
+): Promise<CheckRecord | null> => {
+    try {
+        const { data: check, error: checkError } = await supabaseClient
+            .from('checks')
+            .select(`
+        id,
+        grade,
+        total_comment,
+        comments_contents,
+        comments_files,
+        comments_lines,
+        created_at,
+        answers!inner(
+          homeworks!inner(
+            title,
+            description,
+            courses!inner(
+              name
+            )
+          )
+        )
+      `)
+            .eq('answer_id', answerId)
+            .single();
+
+        if (checkError) {
+            console.error('获取批改记录失败:', checkError);
+            return null;
+        }
+
+        return check as unknown as CheckRecord;
+    } catch (err) {
+        console.error('获取批改记录失败:', err);
+        return null;
+    }
+};
+
+export const fetchCourses = async (supabaseClient: SupabaseClient): Promise<Course[]> => {
+    try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) throw new Error('用户未登录');
+
+        const { data, error } = await supabaseClient
+            .from('courses')
+            .select('*')
+            .eq('teacher', user.id)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('获取课程失败:', error);
+            throw error;
+        }
+
+        return data || [];
+    } catch (err: any) {
+        console.error('获取课程失败:', err);
+        throw (`获取课程失败: ${err.message}`);
+    }
+};
+
+
+export const fetchCourseStudents = async (supabaseClient: SupabaseClient, courseId: number): Promise<StudentInfo[]> => {
+    try {
+        const { data: students, error } = await supabaseClient
+            .from('profiles')
+            .select('id, name, student_id, class_id, classes(name)')
+            .in('class_id', (await supabaseClient
+                .from('courses')
+                .select('class_ids')
+                .eq('id', courseId)
+                .single()
+            ).data?.class_ids || []);
+
+        if (error) throw error;
+
+        return (students || []).map(student => ({
+            id: student.id,
+            name: student.name,
+            student_id: student.student_id,
+            class_id: student.class_id,
+            class_name: (student.classes as any)?.name || '未知班级'
+        }));
+    } catch (err) {
+        console.error('获取学生信息失败:', err);
+        return [];
+    }
+};
+
+export const fetchCourseHomeworks = async (supabaseClient: SupabaseClient, courseId: number): Promise<HomeworkInfo[]> => {
+    try {
+        const { data: homeworks, error } = await supabaseClient
+            .from('homeworks')
+            .select('id, title')
+            .eq('course_id', courseId);
+
+        if (error) throw error;
+
+        return homeworks || [];
+    } catch (err) {
+        console.error('获取作业信息失败:', err);
+        return [];
+    }
+};
+
+export const fetchHomeworks = async (supabase: SupabaseClient) => {
+    try {
+        const { data, error } = await supabase
+            .from('homeworks')
+            .select(`
+          *,
+          courses(name, language)
+        `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const processedHomeworks = data?.map(hw => ({
+            ...hw,
+            course_name: hw.courses.name,
+            language: hw.courses.language,
+        })) || [];
+
+        return processedHomeworks;
+    } catch (err: any) {
+        console.error('获取作业失败:', err);
+        throw `获取作业失败: ${err.message}`;
+    }
 };
