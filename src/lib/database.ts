@@ -435,6 +435,7 @@ export const fetchFileContents = async (
 ): Promise<FileContent[]> => {
     try {
         console.log('获取文件内容，路径:', storagePath);
+
         const { data: files, error: filesError } = await supabaseClient
             .storage
             .from('homework')
@@ -447,6 +448,46 @@ export const fetchFileContents = async (
 
         console.log('找到的文件数量:', files?.length || 0);
 
+        // 从路径中提取 homework_id
+        // 路径格式应该是 "学生UUID/作业ID"
+        const pathParts = storagePath.split('/');
+        let homeworkId: number | null = null;
+
+        // 路径的最后一部分应该是 homework_id
+        if (pathParts.length >= 2) {
+            const lastPart = pathParts[pathParts.length - 1];
+            homeworkId = parseInt(lastPart);
+
+            if (isNaN(homeworkId) || homeworkId <= 0) {
+                console.error('无法从路径中提取有效的 homework_id:', storagePath);
+                return [];
+            }
+        } else {
+            console.error('路径格式不正确，无法提取 homework_id:', storagePath);
+            return [];
+        }
+
+        console.log('提取到的 homework_id:', homeworkId);
+
+        // 从 homework_files 表获取文件的可编辑属性
+        const { data: homeworkFiles, error: homeworkFilesError } = await supabaseClient
+            .from('homework_files')
+            .select('file_name, editable')
+            .eq('homework_id', homeworkId);
+
+        if (homeworkFilesError) {
+            console.error('获取作业文件配置失败:', homeworkFilesError);
+            return [];
+        }
+
+        // 创建文件名到 editable 的映射
+        const editableMap = new Map();
+        homeworkFiles?.forEach(file => {
+            editableMap.set(file.file_name, file.editable);
+        });
+
+        console.log('作业文件配置:', homeworkFiles);
+
         const fileContents: FileContent[] = [];
         for (const file of files || []) {
             try {
@@ -455,25 +496,33 @@ export const fetchFileContents = async (
                     .storage
                     .from('homework')
                     .download(filePath);
+
                 if (!downloadError && fileData) {
                     const text = await fileData.text();
+
+                    // 从映射中获取 editable 属性，如果找不到则默认为 true
+                    const editable = editableMap.has(file.name) ? editableMap.get(file.name) : true;
+
                     fileContents.push({
                         file_name: file.name,
                         file_content: text,
-                        editable: false
+                        editable: editable
                     });
-                    console.log(`成功读取文件: ${file.name}`);
+                    console.log(`成功读取文件: ${file.name}, 可编辑: ${editable}`);
+                } else {
+                    console.error(`下载文件 ${file.name} 失败:`, downloadError);
                 }
             } catch (fileErr) {
                 console.error(`读取文件 ${file.name} 失败:`, fileErr);
             }
         }
+
         return fileContents;
     } catch (err) {
         console.error('获取文件内容失败:', err);
         return [];
     }
-};
+}
 
 export const getUniqueCourseNames = (reviews: Review[]): string[] => {
     const courseNames = reviews.map(review => review.course_name);
