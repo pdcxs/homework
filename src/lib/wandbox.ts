@@ -112,31 +112,32 @@ const executeWandbox = async (
     stdin: string,
     compileOptions: string
 ): Promise<RunResult> => {
-    const wandboxData: WandboxRequest = {
+    const cppFiles = Object.keys(fileContents).filter(file =>
+        file.endsWith('.cpp') || file.endsWith('.cc') || file.endsWith('.c')
+    );
+
+    const mainFile = cppFiles.find(file =>
+        file.startsWith("main.") || file.startsWith("Main.")
+    ) || Object.keys(fileContents)[0];
+
+    const additionalCppFiles = cppFiles.filter(file => file !== mainFile);
+
+    const wandboxData = {
         compiler,
-        code: '',
-        codes: Object.entries(fileContents).map(([fileName, content]) => ({
-            file: fileName,
-            code: content
-        })),
-        options: compileOptions || "",
+        code: fileContents[mainFile],
+        codes: Object.entries(fileContents)
+            .filter(([fileName]) => fileName !== mainFile)
+            .map(([fileName, content]) => ({
+                file: fileName,
+                code: content
+            })),
+        options: "",
         stdin,
-        compiler_option_raw: compileOptions || "",
-        runtime_option_raw: ""
+        "compiler-option-raw": compileOptions + additionalCppFiles.join(' '),
+        "runtime-option-raw": ""
     };
 
-    // 查找主文件
-    const mainFile = Object.keys(fileContents).find(file =>
-        file.startsWith('Main.') || file.startsWith('main.')
-    );
-    if (mainFile) {
-        wandboxData.code = fileContents[mainFile];
-    } else if (Object.keys(fileContents).length > 0) {
-        const firstFileName = Object.keys(fileContents)[0];
-        wandboxData.code = fileContents[firstFileName];
-    }
-
-    const response = await fetch('https://wandbox.org/api/compile.json', {
+    const response = await fetch('https://wandbox.org/api/compile.ndjson', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(wandboxData),
@@ -146,15 +147,45 @@ const executeWandbox = async (
         throw new Error(`网络请求失败: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json();
-    const output = result.program_output || result.compiler_output || '';
+    const responseText = await response.text();
+    const lines = responseText.trim().split('\n');
+
+    let output = '';
+    let error = '';
+    let signal = '';
+    let status = '';
+    let success = false;
+
+    for (const line of lines) {
+        try {
+            const event = JSON.parse(line);
+
+            switch (event.type) {
+                case 'StdOut':
+                    output += event.data;
+                    break;
+                case 'StdErr':
+                    error += event.data;
+                    break;
+                case 'ExitCode':
+                    status = event.data;
+                    success = event.data === '0';
+                    break;
+                case 'Signal':
+                    signal = event.data;
+                    break;
+            }
+        } catch (e) {
+            console.warn('解析 Wandbox 事件失败:', e, '原始内容:', line);
+        }
+    }
 
     return {
-        success: result.status === '0',
-        output,
-        error: result.program_error || result.compiler_error,
-        signal: result.signal,
-        status: result.status
+        success,
+        output: output.trim(),
+        error: error.trim(),
+        signal,
+        status
     };
 };
 
