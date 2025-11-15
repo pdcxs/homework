@@ -24,18 +24,6 @@ interface Course {
     language: string;
 }
 
-interface Homework {
-    id: number;
-    title: string;
-    course_id: number;
-    description: string;
-    deadline: string;
-    published: boolean;
-    compile_options?: string;
-    inputs?: string[];
-    outputs?: string[];
-}
-
 // 导出表单值类型供 HomeworkEditor 使用
 export interface HomeworkFormValues {
     title: string;
@@ -63,6 +51,13 @@ const HomeworkEditPage: React.FC = () => {
             compile_options: '',
             published: false,
         },
+        validate: {
+            deadline: (value) => {
+                if (!value) return '截止时间不能为空';
+                if (!(value instanceof Date)) return '截止时间格式错误: ' + value;
+                return null;
+            }
+        }
     });
 
     useEffect(() => {
@@ -116,11 +111,20 @@ const HomeworkEditPage: React.FC = () => {
         try {
             setSaving(true);
 
+            let deadlineISO: string | null = null;
+            console.log(form.values)
+            if (form.values.deadline && form.values.deadline instanceof Date) {
+                const deadline = new Date(form.values.deadline);
+                deadlineISO = deadline.toISOString();
+            } else {
+                deadlineISO = new Date(form.values.deadline as unknown as string).toISOString();
+            }
+
             const homeworkData = {
                 title: form.values.title,
                 course_id: parseInt(form.values.course_id),
                 description: form.values.description,
-                deadline: form.values.deadline?.toISOString(),
+                deadline: deadlineISO,
                 compile_options: form.values.compile_options,
                 published: publish,
             };

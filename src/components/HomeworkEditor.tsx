@@ -9,7 +9,7 @@ import {
     Group,
     Button,
 } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
+import { DateTimePicker } from '@mantine/dates';
 import { UseFormReturnType } from '@mantine/form';
 import { HomeworkFormValues } from '@/pages/HomeworkEdit.page';
 
@@ -60,7 +60,7 @@ export function HomeworkEditor({
                     />
                 </Group>
 
-                <DateInput
+                <DateTimePicker
                     label="截止时间"
                     placeholder="选择截止时间"
                     required

@@ -170,7 +170,7 @@ const HomeworkManagement: React.FC = () => {
                                     </Table.Td>
                                     <Table.Td>
                                         <Text size="sm">
-                                            {new Date(homework.deadline).toLocaleDateString('zh-CN')}
+                                            {new Date(homework.deadline).toLocaleString('zh-CN')}
                                         </Text>
                                     </Table.Td>
                                     <Table.Td>
