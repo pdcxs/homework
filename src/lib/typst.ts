@@ -106,23 +106,28 @@ export const generateTypstSource = (review: Review, files: FileContent[]): strin
     source += `#import "@preview/cmarker:0.1.6"\n\n`
     source += `#import "@preview/mitex:0.2.5": mitex\n\n`
     source += `#set page(margin: 1in)\n\n`;
+    source += `#show heading: it => { \n it\n v(0.5em)\n}\n\n`
     source += `#show heading.where(level: 1): set text(size: 30pt)\n\n`;
     source += `#show heading.where(level: 1): it => { align(center, it)}\n\n`;
     source += `#show heading.where(level: 2): set text(size: 20pt)\n\n`;
     source += `#set heading(numbering: (..nums) => { if nums.pos().len() == 2 {return str(nums.pos().last()) + ". "} else {return ""}})\n\n`;
-    source += `#set par(first-line-indent: (amount: 2em, all: true))\n\n`;
-    source += `#set text(size: 15pt)\n\n`;
+    source += `#set par(justify: true, first-line-indent: (amount: 2em, all: true))\n\n`;
+    source += `#set text(size: 14pt)\n\n`;
     source += `= ${review.homework_title}\n\n`;
     source += `== 评分\n\n`;
     source += `#box(stroke: black, inset: 10pt)[*${review.grade}*]\n\n`;
     source += `== 总体评语\n\n${review.total_comment}\n\n`;
     source += `== 作业内容\n\n`;
     source += `#block(stroke: 1pt + black, inset: 2em, breakable: true, width: 100%)[\n`;
+    source += `#set par(justify: true, first-line-indent: (amount: 2em, all: true))\n\n`;
+    source += `#show heading.where(level: 3): set text(size: 18pt)\n\n`;
+    source += `#show heading: set text(size: 16pt)\n\n`;
+    source += `#set text(size: 14pt)\n\n`;
     source += `#cmarker.render("${review.description
-        .replaceAll(`"`, `\\"`)
-        .replace(/^# (.+)/, '### $1')
-        .replace(/^## (.+)/, '#### $1')
-        .replace(/^### (.+)/, '#### $1')}", math: mitex)\n\n`;
+        .replace(`"`, `\\"`)
+        .replace(/^### (.+)/gm, '#### $1')
+        .replace(/^## (.+)/gm, '#### $1')
+        .replace(/^# (.+)/gm, '### $1')}", math: mitex)\n\n`;
     source += `]\n\n`;
     source += `== 源程序\n\n`;
 
