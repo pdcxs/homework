@@ -53,6 +53,13 @@ const HomeworkManagement: React.FC = () => {
 
         try {
             setError(null);
+            const { error: fileError } = await supabase
+                .from('homework_files')
+                .delete()
+                .eq('homework_id', deletingHomework.id);
+
+            if (fileError) throw fileError;
+            
             const { error } = await supabase
                 .from('homeworks')
                 .delete()
