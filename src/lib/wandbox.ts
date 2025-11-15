@@ -133,7 +133,7 @@ const executeWandbox = async (
             })),
         options: "",
         stdin,
-        "compiler-option-raw": compileOptions + additionalCppFiles.join(' '),
+        "compiler-option-raw": compileOptions + additionalCppFiles.join('\n'),
         "runtime-option-raw": ""
     };
 
@@ -150,22 +150,28 @@ const executeWandbox = async (
     const responseText = await response.text();
     const lines = responseText.trim().split('\n');
 
-    let output = '';
-    let error = '';
+    let programOutput = '';
+    let compilerOutput = '';
+    let programError = '';
+    let compilerError = '';
     let signal = '';
     let status = '';
     let success = false;
 
-    for (const line of lines) {
+for (const line of lines) {
         try {
             const event = JSON.parse(line);
-
+            
             switch (event.type) {
                 case 'StdOut':
-                    output += event.data;
+                    programOutput += event.data;
                     break;
                 case 'StdErr':
-                    error += event.data;
+                    programError += event.data;
+                    break;
+                case 'CompilerMessageE':
+                    // 编译器消息（包含警告和错误）
+                    compilerOutput += event.data + '\n';
                     break;
                 case 'ExitCode':
                     status = event.data;
@@ -174,17 +180,33 @@ const executeWandbox = async (
                 case 'Signal':
                     signal = event.data;
                     break;
+                case 'Control':
+                    // 控制消息，可以忽略或用于调试
+                    break;
+                default:
+                    console.log('未知事件类型:', event.type, event);
             }
         } catch (e) {
             console.warn('解析 Wandbox 事件失败:', e, '原始内容:', line);
         }
     }
 
+    let finalOutput = '';
+    let finalError = '';
+    
+    if (success) {
+        finalOutput = programOutput.trim();
+        finalError = compilerOutput.trim() || programError.trim();
+    } else {
+        finalOutput = programOutput.trim();
+        finalError = (compilerOutput.trim() + (compilerOutput && programError ? '\n' : '') + programError.trim()).trim();
+    }
+
     return {
         success,
-        output: output.trim(),
-        error: error.trim(),
-        signal,
+        output: finalOutput,
+        error: finalError || undefined,
+        signal: signal || undefined,
         status
     };
 };
