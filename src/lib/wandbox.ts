@@ -117,7 +117,7 @@ const executeWandbox = async (
     );
 
     const mainFile = cppFiles.find(file =>
-        file.startsWith("main.") || file.startsWith("Main.")
+        file.startsWith("prog.")
     ) || Object.keys(fileContents)[0];
 
     const additionalCppFiles = cppFiles.filter(file => file !== mainFile);
@@ -153,7 +153,6 @@ const executeWandbox = async (
     let programOutput = '';
     let compilerOutput = '';
     let programError = '';
-    let compilerError = '';
     let signal = '';
     let status = '';
     let success = false;
@@ -170,7 +169,6 @@ for (const line of lines) {
                     programError += event.data;
                     break;
                 case 'CompilerMessageE':
-                    // 编译器消息（包含警告和错误）
                     compilerOutput += event.data + '\n';
                     break;
                 case 'ExitCode':
@@ -181,7 +179,6 @@ for (const line of lines) {
                     signal = event.data;
                     break;
                 case 'Control':
-                    // 控制消息，可以忽略或用于调试
                     break;
                 default:
                     console.log('未知事件类型:', event.type, event);
