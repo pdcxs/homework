@@ -56,32 +56,64 @@ function GlobalContextProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
 
-      if (session?.user?.id) {
-        await fetchUserRole(session.user.id);
-      } else {
+    const getInitialSessionWithTimeout = async () => {
+      try {
+        const sessionData = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: Session | null } }>((_, reject) =>
+            timeoutId = setTimeout(() => reject(new Error('getSession timeout')), 5000)
+          )
+        ]);
+
+        clearTimeout(timeoutId);
+
+        if (!isMounted) return;
+
+        const session = sessionData.data.session;
+        setSession(session);
+
+        if (session?.user?.id) {
+          await fetchUserRole(session.user.id);
+        } else {
+          setUserRole(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('getInitialSession 超时或失败，强制视为未登录:', err);
+        clearTimeout(timeoutId);
+
+        if (!isMounted) return;
+
+        setSession(null);
+        setUserRole(null);
         setLoading(false);
       }
     };
 
-    getInitialSession();
+    getInitialSessionWithTimeout();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
       setSession(session);
+
       if (session?.user?.id) {
         await fetchUserRole(session.user.id);
       } else {
         setUserRole(null);
-        setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   const value = {
