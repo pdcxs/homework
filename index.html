@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/homework/assets/favicon-Bt4n31A2.svg" />
+  <meta name="viewport" content="minimum-scale=1, initial-scale=1, width=device-width, user-scalable=no" />
+  <title>作业提交系统</title>
+  <script>
+    // Handle redirect from 404.html
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get('redirect');
+    if (redirect) {
+      const newUrl = window.location.origin + '/homework' + redirect;
+      window.history.replaceState({}, '', newUrl);
+    }
+  </script>
+  <script type="module" crossorigin src="/homework/assets/index-DbqZJzZr.js"></script>
+  <link rel="stylesheet" crossorigin href="/homework/assets/index-CKAvRmn4.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>
